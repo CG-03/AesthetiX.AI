@@ -1,0 +1,35 @@
+import React, { useState, useRef } from 'react';
+import { GoogleGenerativeAI } from "@google/generative-ai";
+import { 
+  Upload, 
+  Sparkles, 
+  Home, 
+  IndianRupee, 
+  Lightbulb, 
+  PaintBucket, 
+  Layout, 
+  ShoppingBag,
+  Camera,
+  X,
+  Loader2,
+  ChevronRight,
+  Compass,
+  MapPin,
+  Moon,
+  Sun,
+  Share2,
+  Layers,
+  Box,
+  Hammer,
+  Link as LinkIcon,
+  Download,
+  CheckCircle2
+} from 'lucide-react';
+import { motion, AnimatePresence } from 'motion/react';
+import ReactMarkdown from 'react-markdown';
+import html2canvas from 'html2canvas';
+import confetti from 'canvas-confetti';
+import { cn } from './lib/utils';
+
+// Initialize Gemini AI
+const genAI = new GoogleGenerativeAI(import.meta.env.VITE_GEMINI_API_KEY || '');
