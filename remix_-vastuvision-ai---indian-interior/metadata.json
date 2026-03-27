@@ -1,0 +1,7 @@
+{
+  "name": "Remix: VastuVision AI - Indian Interior ",
+  "description": "AI-powered interior design assistant for Indian homes, providing budget-friendly and renter-safe redesign suggestions.",
+  "requestFramePermissions": [
+    "camera"
+  ]
+}
