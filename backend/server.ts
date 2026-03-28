@@ -115,11 +115,17 @@ app.post('/api/analyze', async (req, res) => {
     ]);
 
     const getImageUrl = (result: any) => {
-      const response = result.response;
-      for (const part of response.candidates[0].content.parts) {
-        if (part.inlineData) {
-          return `data:image/png;base64,${part.inlineData.data}`;
+      try {
+        const response = result.response;
+        if (!response?.candidates?.[0]?.content?.parts) return null;
+        
+        for (const part of response.candidates[0].content.parts) {
+          if (part.inlineData) {
+            return `data:image/png;base64,${part.inlineData.data}`;
+          }
         }
+      } catch (e) {
+        console.error("Error extracting image from AI response:", e);
       }
       return null;
     };

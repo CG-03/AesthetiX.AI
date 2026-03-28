@@ -163,14 +163,7 @@ export default function App() {
       setIsAnalyzing(false);
     }
   };
-        nighttimeImage: null,
-        loading: false,
-        error: "Failed to analyze image. Please check your connection or try a different image."
-      });
-    } finally {
-      setIsAnalyzing(false);
-    }
-  };
+
 
   const downloadCollage = async () => {
     if (collageRef.current) {
