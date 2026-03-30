@@ -57,13 +57,13 @@ app.post('/api/analyze', async (req, res) => {
             }),
           }
         );
-        
+
         if (!response.ok) {
           const errText = await response.text();
           console.error(`[QWEN] API Error (${response.status}):\n`, errText);
           return `AI Analysis unavailable right now. Error: ${response.status} - ${errText}`;
         }
-        
+
         const data = await response.json();
         console.log(`[QWEN] Success! Response JSON preview:\n`, JSON.stringify(data).substring(0, 200) + '...');
         return data.choices && data.choices[0] ? data.choices[0].message.content : JSON.stringify(data);
@@ -73,51 +73,111 @@ app.post('/api/analyze', async (req, res) => {
       }
     };
 
-    // 2. Image Generation using FLUX.1-schnell
-    const generateImage = async (promptText: string, label: string) => {
+    const designPrompt = `REDESIGN RENDER: ${roomType || 'room'}, ${style || 'modern'} style interior design, tailored for a ${ownership || 'homeowner'} in ${location || 'the city'}. High quality, realistic, professional architecture visualization, 8k resolution.`;
+
+    const generateDepthMap = async (baseImage: string) => {
+      const controller = new AbortController();
+      const timeout = setTimeout(() => controller.abort(), 120000); // 120 seconds timeout
       try {
-        console.log(`\n[FLUX - ${label}] Sending prompt: ${promptText}`);
+        console.log(`\n[ControlNet - Step 1] Extracting depth map...`);
+        // User requested calling lllyasviel/sd-controlnet-depth for depth extraction
         const response = await fetch(
-          "https://router.huggingface.co/hf-inference/models/black-forest-labs/FLUX.1-schnell",
+          "https://router.huggingface.co/hf-inference/models/lllyasviel/sd-controlnet-depth",
           {
             headers: {
               "Authorization": `Bearer ${process.env.FLUX_API}`,
               "Content-Type": "application/json",
             },
             method: "POST",
-            body: JSON.stringify({ inputs: promptText }),
+            body: JSON.stringify({
+              inputs: baseImage
+            }),
+            signal: controller.signal
           }
         );
 
+        clearTimeout(timeout);
+
         if (!response.ok) {
           const errText = await response.text();
-          console.error(`[FLUX - ${label}] API Error (${response.status}):\n`, errText);
-          return null; // Frontend hides the box if null
+          console.error(`[ControlNet - Step 1] API Error (${response.status}):\n`, errText);
+          return null;
         }
-        
-        const buffer = await response.arrayBuffer();
-        console.log(`[FLUX - ${label}] Success! Received image buffer of size: ${buffer.byteLength} bytes`);
-        const base64Img = Buffer.from(buffer).toString('base64');
-        return `data:image/jpeg;base64,${base64Img}`;
+
+        const resBuffer = await response.arrayBuffer();
+        console.log(`[ControlNet - Step 1] Success! Depth buffer size: ${resBuffer.byteLength} bytes`);
+        return Buffer.from(resBuffer).toString('base64');
       } catch (err: any) {
-        console.error(`[FLUX - ${label}] Network/Fetch Exception:`, err.message);
+        clearTimeout(timeout);
+        console.error(`[ControlNet - Step 1] Network/Fetch Exception:`, err.message);
         return null;
       }
     };
 
-    // Parallel Execution - wrapped so exceptions here don't break the server
-    console.log("\nStarting parallel AI tasks...");
-    const [analysisResultText, daylightImage, nighttimeImage] = await Promise.all([
-      generateText(analysisPrompt),
-      generateImage(daylightPrompt, "Daylight"),
-      generateImage(nighttimePrompt, "Nighttime")
-    ]);
+    const generateRedesign = async (depthBase64: string, promptText: string) => {
+      const controller = new AbortController();
+      const timeout = setTimeout(() => controller.abort(), 120000); // 120 seconds timeout
+      try {
+        console.log(`\n[ControlNet - Step 2] Generating redesign from depth map...`);
+        const response = await fetch(
+          "https://router.huggingface.co/hf-inference/models/lllyasviel/sd-controlnet-depth",
+          {
+            headers: {
+              "Authorization": `Bearer ${process.env.FLUX_API}`,
+              "Content-Type": "application/json",
+            },
+            method: "POST",
+            body: JSON.stringify({
+              inputs: depthBase64,
+              parameters: { prompt: promptText }
+            }),
+            signal: controller.signal
+          }
+        );
 
-    // Send successful response to client (STRUCTURED JSON)
+        clearTimeout(timeout);
+
+        if (!response.ok) {
+          const errText = await response.text();
+          console.error(`[ControlNet - Step 2] API Error (${response.status}):\n`, errText);
+          return null;
+        }
+
+        const resBuffer = await response.arrayBuffer();
+        console.log(`[ControlNet - Step 2] Success! Redesign buffer size: ${resBuffer.byteLength} bytes`);
+        return Buffer.from(resBuffer).toString('base64');
+      } catch (err: any) {
+        clearTimeout(timeout);
+        console.error(`[ControlNet - Step 2] Network/Fetch Exception:`, err.message);
+        return null;
+      }
+    };
+
+    // Sequential & Parallel Execution
+    console.log("\nStarting AI tasks...");
+
+    // Base64 manipulation: strip data header if present for HF APIs that expect pure base64
+    const cleanBase64 = image.includes(",") ? image.split(",")[1] : image;
+
+    // 1. Start Qwen Analysis and Depth Extraction in parallel
+    const textPromise = generateText(analysisPrompt);
+    const depthBase64 = await generateDepthMap(cleanBase64);
+
+    // 2. Once Depth is extracted, run ControlNet redesign using the depth map
+    let redesignBase64 = null;
+    if (depthBase64) {
+      redesignBase64 = await generateRedesign(depthBase64, designPrompt);
+    } else {
+      console.error("Skipping redesign because depth map extraction failed.");
+    }
+
+    const analysisResultText = await textPromise;
+
+    // Send successful response to client returning depth and styled image
     res.status(200).json({
       text: analysisResultText,
-      daylightImage: daylightImage,
-      nighttimeImage: nighttimeImage
+      depthMapImage: depthBase64 ? `data:image/jpeg;base64,${depthBase64}` : null,
+      redesignedImage: redesignBase64 ? `data:image/jpeg;base64,${redesignBase64}` : null
     });
 
     console.log("\n--- Request Completed Successfully ---");

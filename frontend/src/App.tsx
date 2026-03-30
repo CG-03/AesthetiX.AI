@@ -34,9 +34,10 @@ import { cn } from './lib/utils';
 
 interface DesignResult {
   text: string;
-  daylightImage: string | null;
-  nighttimeImage: string | null;
+  depthMapImage: string | null;
+  redesignedImage: string | null;
   loading: boolean;
+  loadingMessage: string;
   error: string | null;
 }
 
@@ -58,9 +59,10 @@ export default function App() {
 
   const [result, setResult] = useState<DesignResult>({
     text: '',
-    daylightImage: null,
-    nighttimeImage: null,
+    depthMapImage: null,
+    redesignedImage: null,
     loading: false,
+    loadingMessage: '',
     error: null
   });
 
@@ -86,7 +88,7 @@ export default function App() {
       const reader = new FileReader();
       reader.onloadend = () => {
         setImage(reader.result as string);
-        setResult({ text: '', daylightImage: null, nighttimeImage: null, loading: false, error: null });
+        setResult({ text: '', depthMapImage: null, redesignedImage: null, loading: false, loadingMessage: '', error: null });
       };
       reader.readAsDataURL(file);
     }
@@ -109,7 +111,12 @@ export default function App() {
     if (!image) return;
 
     setIsAnalyzing(true);
-    setResult({ text: '', daylightImage: null, nighttimeImage: null, loading: true, error: null });
+    setResult({ text: '', depthMapImage: null, redesignedImage: null, loading: true, loadingMessage: 'Analyzing room structure...', error: null });
+
+    // Simulate the two-step backend process timing for UX
+    const timer = setTimeout(() => {
+      setResult(prev => ({ ...prev, loadingMessage: 'Generating design...' }));
+    }, 15000); 
 
     const analysisPrompt = `Expert AI Interior Designer: Analyze this ${roomType} in ${style} style. 
     Context: The room faces ${direction}, is located in ${location}, and has a budget of ₹${budget}. 
@@ -143,9 +150,10 @@ export default function App() {
 
       setResult({
         text: data.text || "I couldn't generate a design. Please try another image.",
-        daylightImage: data.daylightImage,
-        nighttimeImage: data.nighttimeImage,
+        depthMapImage: data.depthMapImage,
+        redesignedImage: data.redesignedImage,
         loading: false,
+        loadingMessage: '',
         error: null
       });
 
@@ -160,12 +168,14 @@ export default function App() {
       console.error(err);
       setResult({
         text: '',
-        daylightImage: null,
-        nighttimeImage: null,
+        depthMapImage: null,
+        redesignedImage: null,
         loading: false,
+        loadingMessage: '',
         error: "Failed to analyze image. Please check your connection or try a different image."
       });
     } finally {
+      clearTimeout(timer);
       setIsAnalyzing(false);
     }
   };
@@ -184,7 +194,7 @@ export default function App() {
   const reset = () => {
     setImage(null);
     setInspirationImages([]);
-    setResult({ text: '', daylightImage: null, nighttimeImage: null, loading: false, error: null });
+    setResult({ text: '', depthMapImage: null, redesignedImage: null, loading: false, loadingMessage: '', error: null });
   };
 
   return (
@@ -454,8 +464,8 @@ export default function App() {
                     <Sparkles className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 accent-gold w-8 h-8 animate-pulse" />
                   </div>
                   <div className="space-y-3">
-                    <h3 className="text-3xl font-serif font-bold">Generating Renders...</h3>
-                    <p className="text-gray-500 max-w-sm mx-auto">We are creating both Daylight and Nighttime renders based on your ${direction} facing windows and ${style} preference.</p>
+                    <h3 className="text-3xl font-serif font-bold">{result.loadingMessage || 'Generating Renders...'}</h3>
+                    <p className="text-gray-500 max-w-sm mx-auto">We are mapping the physical geometry of your room to ensure original walls, windows, and structures are strictly preserved while generating your new {style}-style overlay.</p>
                   </div>
                   <div className="w-full max-w-xs bg-[#F3EFE0] h-1 rounded-full overflow-hidden">
                     <motion.div
@@ -510,28 +520,23 @@ export default function App() {
                       </div>
 
                       <div className="grid md:grid-cols-2 gap-6">
-                        {result.daylightImage && (
+                        {result.depthMapImage && (
                           <div className="space-y-3">
                             <div className="flex items-center gap-2 text-xs font-bold uppercase tracking-widest text-gray-400">
-                              <Sun size={14} className="text-orange-400" /> Daylight Render
+                              <Box size={14} className="text-blue-400" /> Structure Map (Depth)
                             </div>
-                            <div className="relative aspect-video rounded-2xl overflow-hidden border border-[#F3EFE0] shadow-lg group">
-                              <img src={result.daylightImage} className="w-full h-full object-cover" alt="Daylight" />
-                              <div className="absolute inset-0 bg-black/40 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center">
-                                <button className="bg-white text-[#2D2D2D] px-4 py-2 rounded-full text-xs font-bold flex items-center gap-2">
-                                  <Box size={14} /> 3D View (SAM)
-                                </button>
-                              </div>
+                            <div className="relative aspect-video rounded-2xl overflow-hidden border border-[#F3EFE0] shadow-lg">
+                              <img src={result.depthMapImage} className="w-full h-full object-cover grayscale" alt="Depth Map" />
                             </div>
                           </div>
                         )}
-                        {result.nighttimeImage && (
+                        {result.redesignedImage && (
                           <div className="space-y-3">
                             <div className="flex items-center gap-2 text-xs font-bold uppercase tracking-widest text-gray-400">
-                              <Moon size={14} className="text-blue-400" /> Nighttime Render
+                              <Sparkles size={14} className="text-orange-400" /> Final Redesign
                             </div>
                             <div className="relative aspect-video rounded-2xl overflow-hidden border border-[#F3EFE0] shadow-lg group">
-                              <img src={result.nighttimeImage} className="w-full h-full object-cover" alt="Nighttime" />
+                              <img src={result.redesignedImage} className="w-full h-full object-cover" alt="Redesign" />
                               <div className="absolute inset-0 bg-black/40 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center">
                                 <button className="bg-white text-[#2D2D2D] px-4 py-2 rounded-full text-xs font-bold flex items-center gap-2">
                                   <Box size={14} /> 3D View (SAM)
@@ -564,7 +569,7 @@ export default function App() {
                             <div className="absolute top-2 left-2 bg-black/60 text-white px-2 py-1 rounded text-[10px] font-bold uppercase">Before</div>
                           </div>
                           <div className="relative aspect-video rounded-lg overflow-hidden">
-                            <img src={result.daylightImage!} className="w-full h-full object-cover" alt="After" />
+                            <img src={result.redesignedImage!} className="w-full h-full object-cover" alt="After" />
                             <div className="absolute top-2 left-2 bg-[#B3541E] text-white px-2 py-1 rounded text-[10px] font-bold uppercase">After</div>
                           </div>
                         </div>
