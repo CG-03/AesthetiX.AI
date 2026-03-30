@@ -33,15 +33,15 @@ app.post('/api/analyze', async (req, res) => {
       return res.status(400).json({ error: 'Image is required' });
     }
 
-    // Define Prompts
-    const analysisPrompt = `Expert AI Interior Designer: Analyze ${roomType || 'room'} in ${style || 'modern'} style. Facing ${direction || 'North'} in ${location || 'city'}. Budget ₹${budget || '50000'}. Return analysis, layout design, color palette (Vastu), lighting, furniture links, and cost estimation.`;
-    const daylightPrompt = `REDESIGN RENDER: ${roomType || 'room'}, ${style || 'modern'} style, bright natural light from ${direction || 'North'}. Professional, realistic interior design.`;
-    const nighttimePrompt = `REDESIGN RENDER: ${roomType || 'room'}, ${style || 'modern'} style, artificial ambient lighting. Professional, realistic interior design.`;
+    // Define Prompts combining all requested inputs
+    const analysisPrompt = `Expert AI Interior Designer: You are analyzing a ${roomType || 'room'} for a ${ownership || 'homeowner'} in ${location || 'the city'}. The desired style is ${style || 'modern'}, facing ${direction || 'North'}, with a budget of ₹${budget || '50000'}. Please provide a detailed design analysis, layout design, Vastu-compliant color palette, lighting suggestions, shoppable furniture links, and a cost estimation.`;
+    const daylightPrompt = `${roomType || 'room'}, ${style || 'modern'} style interior design, tailored for a ${ownership || 'homeowner'} in ${location || 'the city'}. Bright natural sunlight from ${direction || 'North'} facing window. High quality, realistic, professional architecture visualization, 8k resolution.`;
+    const nighttimePrompt = `${roomType || 'room'}, ${style || 'modern'} style interior design, tailored for a ${ownership || 'homeowner'} in ${location || 'the city'}. Cinematic artificial evening lighting, cozy ambiance. High quality, realistic, professional architecture visualization, 8k resolution.`;
 
     // 1. Text Analysis using Qwen2.5-72B-Instruct
     const generateText = async (promptText: string) => {
       try {
-        console.log(`[QWEN] Generating text analysis...`);
+        console.log(`\n[QWEN] Sending prompt: ${promptText}`);
         const response = await fetch(
           "https://api-inference.huggingface.co/models/Qwen/Qwen2.5-72B-Instruct/v1/chat/completions",
           {
@@ -60,12 +60,13 @@ app.post('/api/analyze', async (req, res) => {
         
         if (!response.ok) {
           const errText = await response.text();
-          console.error(`[QWEN] API Error (${response.status}):`, errText);
+          console.error(`[QWEN] API Error (${response.status}):\n`, errText);
           return `AI Analysis unavailable right now. Error: ${response.status} - ${errText}`;
         }
         
         const data = await response.json();
-        return data.choices[0].message.content;
+        console.log(`[QWEN] Success! Response JSON preview:\n`, JSON.stringify(data).substring(0, 200) + '...');
+        return data.choices && data.choices[0] ? data.choices[0].message.content : JSON.stringify(data);
       } catch (err: any) {
         console.error(`[QWEN] Network/Fetch Exception:`, err.message);
         return "Internal error analyzing text.";
@@ -75,7 +76,7 @@ app.post('/api/analyze', async (req, res) => {
     // 2. Image Generation using FLUX.1-schnell
     const generateImage = async (promptText: string, label: string) => {
       try {
-        console.log(`[FLUX - ${label}] Generating image...`);
+        console.log(`\n[FLUX - ${label}] Sending prompt: ${promptText}`);
         const response = await fetch(
           "https://api-inference.huggingface.co/models/black-forest-labs/FLUX.1-schnell",
           {
@@ -90,11 +91,12 @@ app.post('/api/analyze', async (req, res) => {
 
         if (!response.ok) {
           const errText = await response.text();
-          console.error(`[FLUX - ${label}] API Error (${response.status}):`, errText);
-          return null;
+          console.error(`[FLUX - ${label}] API Error (${response.status}):\n`, errText);
+          return null; // Frontend hides the box if null
         }
         
         const buffer = await response.arrayBuffer();
+        console.log(`[FLUX - ${label}] Success! Received image buffer of size: ${buffer.byteLength} bytes`);
         const base64Img = Buffer.from(buffer).toString('base64');
         return `data:image/jpeg;base64,${base64Img}`;
       } catch (err: any) {
@@ -104,21 +106,21 @@ app.post('/api/analyze', async (req, res) => {
     };
 
     // Parallel Execution - wrapped so exceptions here don't break the server
-    console.log("Starting parallel AI tasks...");
+    console.log("\nStarting parallel AI tasks...");
     const [analysisResultText, daylightImage, nighttimeImage] = await Promise.all([
       generateText(analysisPrompt),
       generateImage(daylightPrompt, "Daylight"),
       generateImage(nighttimePrompt, "Nighttime")
     ]);
 
-    // Send successful response to client
+    // Send successful response to client (STRUCTURED JSON)
     res.status(200).json({
       text: analysisResultText,
-      daylightImage,
-      nighttimeImage
+      daylightImage: daylightImage,
+      nighttimeImage: nighttimeImage
     });
 
-    console.log("--- Request Completed ---\n");
+    console.log("\n--- Request Completed Successfully ---");
 
   } catch (error: any) {
     console.error('\n--- CRITICAL ENDPOINT ERROR ---');
