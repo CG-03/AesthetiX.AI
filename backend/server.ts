@@ -43,7 +43,7 @@ app.post('/api/analyze', async (req, res) => {
       try {
         console.log(`\n[QWEN] Sending prompt: ${promptText}`);
         const response = await fetch(
-          "https://api-inference.huggingface.co/models/Qwen/Qwen2.5-72B-Instruct/v1/chat/completions",
+          "https://router.huggingface.co/v1/chat/completions",
           {
             headers: {
               "Authorization": `Bearer ${process.env.QWEN_API}`,
@@ -78,7 +78,7 @@ app.post('/api/analyze', async (req, res) => {
       try {
         console.log(`\n[FLUX - ${label}] Sending prompt: ${promptText}`);
         const response = await fetch(
-          "https://api-inference.huggingface.co/models/black-forest-labs/FLUX.1-schnell",
+          "https://router.huggingface.co/hf-inference/models/black-forest-labs/FLUX.1-schnell",
           {
             headers: {
               "Authorization": `Bearer ${process.env.FLUX_API}`,
