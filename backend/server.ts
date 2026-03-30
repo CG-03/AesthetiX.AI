@@ -1,9 +1,8 @@
+import 'dotenv/config'; // Ensure dotenv is first to load keys before anything else
+
 import express from 'express';
 import cors from 'cors';
-import dotenv from 'dotenv';
-import { GoogleGenerativeAI } from '@google/generative-ai';
-
-dotenv.config();
+import { Buffer } from 'buffer';
 
 const app = express();
 const port = process.env.PORT || 5000;
@@ -11,134 +10,124 @@ const port = process.env.PORT || 5000;
 app.use(cors());
 app.use(express.json({ limit: '10mb' }));
 
-// Initialize Gemini AI
-const genAI = new GoogleGenerativeAI(process.env.GEMINI_API_KEY || '');
-const model = genAI.getGenerativeModel({ model: "gemini-1.5-flash" });
+// Health check route
+app.get('/', (req, res) => {
+  res.send({ status: 'online', message: 'VastuVision AI Backend is running' });
+});
 
 app.post('/api/analyze', async (req, res) => {
+  console.log("\n--- New Analysis Request Received ---");
   try {
-    const { 
-      image, 
-      roomType, 
-      style, 
-      budget, 
-      ownership, 
-      direction, 
-      location, 
-      pinterestUrl 
+    const {
+      image,
+      roomType,
+      style,
+      budget,
+      ownership,
+      direction,
+      location,
+      pinterestUrl
     } = req.body;
 
     if (!image) {
       return res.status(400).json({ error: 'Image is required' });
     }
 
-    const base64Data = image.split(',')[1];
-    const mimeType = "image/jpeg";
+    // Define Prompts
+    const analysisPrompt = `Expert AI Interior Designer: Analyze ${roomType || 'room'} in ${style || 'modern'} style. Facing ${direction || 'North'} in ${location || 'city'}. Budget ₹${budget || '50000'}. Return analysis, layout design, color palette (Vastu), lighting, furniture links, and cost estimation.`;
+    const daylightPrompt = `REDESIGN RENDER: ${roomType || 'room'}, ${style || 'modern'} style, bright natural light from ${direction || 'North'}. Professional, realistic interior design.`;
+    const nighttimePrompt = `REDESIGN RENDER: ${roomType || 'room'}, ${style || 'modern'} style, artificial ambient lighting. Professional, realistic interior design.`;
 
-    const imagePart = {
-      inlineData: {
-        data: base64Data,
-        mimeType
+    // 1. Text Analysis using Qwen2.5-72B-Instruct
+    const generateText = async (promptText: string) => {
+      try {
+        console.log(`[QWEN] Generating text analysis...`);
+        const response = await fetch(
+          "https://api-inference.huggingface.co/models/Qwen/Qwen2.5-72B-Instruct/v1/chat/completions",
+          {
+            headers: {
+              "Authorization": `Bearer ${process.env.QWEN_API}`,
+              "Content-Type": "application/json",
+            },
+            method: "POST",
+            body: JSON.stringify({
+              model: "Qwen/Qwen2.5-72B-Instruct",
+              messages: [{ role: "user", content: promptText }],
+              max_tokens: 1500,
+            }),
+          }
+        );
+        
+        if (!response.ok) {
+          const errText = await response.text();
+          console.error(`[QWEN] API Error (${response.status}):`, errText);
+          return `AI Analysis unavailable right now. Error: ${response.status} - ${errText}`;
+        }
+        
+        const data = await response.json();
+        return data.choices[0].message.content;
+      } catch (err: any) {
+        console.error(`[QWEN] Network/Fetch Exception:`, err.message);
+        return "Internal error analyzing text.";
       }
     };
 
-    // 1. Generate Analysis Text
-    const analysisPrompt = `
-      You are an expert AI Interior Designer specializing in Indian homes. 
-      Analyze this room image and provide a comprehensive redesign plan for a ${roomType} in "${style}" style.
-      
-      Context:
-      - Room Type: ${roomType}
-      - Style: ${style}
-      - Budget: ₹${budget}
-      - Ownership: ${ownership}
-      - Facing Direction: ${direction} (Crucial for Vastu and Lighting)
-      - Location: ${location} (For local labor and product availability)
-      - Pinterest/Inspiration: ${pinterestUrl ? `User likes this vibe: ${pinterestUrl}` : 'Use standard style guidelines'}
+    // 2. Image Generation using FLUX.1-schnell
+    const generateImage = async (promptText: string, label: string) => {
+      try {
+        console.log(`[FLUX - ${label}] Generating image...`);
+        const response = await fetch(
+          "https://api-inference.huggingface.co/models/black-forest-labs/FLUX.1-schnell",
+          {
+            headers: {
+              "Authorization": `Bearer ${process.env.FLUX_API}`,
+              "Content-Type": "application/json",
+            },
+            method: "POST",
+            body: JSON.stringify({ inputs: promptText }),
+          }
+        );
 
-      Consider:
-      - Room layout and dimensions
-      - Lighting direction and natural light based on ${direction} facing windows
-      - Furniture placement and ergonomics
-      - Vastu Shastra principles for ${roomType} facing ${direction}
-      - Renter vs owner constraints (${ownership})
-      - Indian product availability (IKEA India, Pepperfry, Urban Ladder, Amazon.in, local markets)
-      - Budget optimization (₹${budget} total)
+        if (!response.ok) {
+          const errText = await response.text();
+          console.error(`[FLUX - ${label}] API Error (${response.status}):`, errText);
+          return null;
+        }
+        
+        const buffer = await response.arrayBuffer();
+        const base64Img = Buffer.from(buffer).toString('base64');
+        return `data:image/jpeg;base64,${base64Img}`;
+      } catch (err: any) {
+        console.error(`[FLUX - ${label}] Network/Fetch Exception:`, err.message);
+        return null;
+      }
+    };
 
-      Return output in this exact format:
-
-      ROOM ANALYSIS
-      Describe current layout, identify the current design style, and highlight issues/strengths. Mention how the ${direction} direction affects the space.
-
-      DESIGN PLAN
-      Suggest improved layout strategy and overall vision for the ${style} style.
-
-      COLOR PALETTE
-      Recommend wall and decor colors that are strictly Vastu-compliant for a ${direction} facing ${roomType}. Use warm, inviting tones (e.g., specific Asian Paints shades like 'Morning Glory' or 'Warm Shell').
-
-      LIGHTING PLAN
-      Suggest lighting improvements (ambient, task, and accent). Distinguish between natural light optimization and artificial lighting.
-
-      FURNITURE SUGGESTIONS
-      Recommend budget-friendly furniture items within the ₹${budget} budget.
-
-      COMPREHENSIVE COST ESTIMATION
-      - Ready-Made Route: Total cost of retail products + local labor/renovation (Mumbai/Local rates).
-      - Custom-Built Route: Estimate for hiring a local carpenter to custom-build furnishings, breaking down raw material vs labor.
-
-      SHOPPING CHECKLIST
-      Provide an itemized list of products featured in the renders with direct purchase links (placeholders) and prices.
-    `;
-
-    // 2. Generate Renders (Prompts)
-    const daylightPrompt = `Redesign this ${roomType} in a "${style}" style. 
-    DAYLIGHT RENDER: Show the reimagined space illuminated by bright natural light coming from the ${direction} direction.
-    The redesign should follow Vastu principles and use warm, inviting color tones.
-    The redesign should look modern, professional, and realistic. 
-    Incorporate a budget of ₹${budget} for furniture and decor. 
-    Ensure the lighting is improved and the layout is optimized for the ${style} aesthetic. 
-    Keep the core structural elements but transform the furniture, wall colors, and decor.`;
-
-    const nighttimePrompt = `Redesign this ${roomType} in a "${style}" style. 
-    NIGHTTIME RENDER: Show the reimagined space illuminated by suggested artificial lighting (warm lamps, ceiling lights, ambient LEDs).
-    The redesign should follow Vastu principles and use warm, inviting color tones.
-    The redesign should look modern, professional, and realistic. 
-    Incorporate a budget of ₹${budget} for furniture and decor. 
-    Ensure the lighting is improved and the layout is optimized for the ${style} aesthetic. 
-    Keep the core structural elements but transform the furniture, wall colors, and decor.`;
-
-    // Run calls in parallel for better performance
-    const [analysisResult, daylightResult, nighttimeResult] = await Promise.all([
-      model.generateContent([analysisPrompt, imagePart]),
-      model.generateContent([daylightPrompt, imagePart]),
-      model.generateContent([nighttimePrompt, imagePart])
+    // Parallel Execution - wrapped so exceptions here don't break the server
+    console.log("Starting parallel AI tasks...");
+    const [analysisResultText, daylightImage, nighttimeImage] = await Promise.all([
+      generateText(analysisPrompt),
+      generateImage(daylightPrompt, "Daylight"),
+      generateImage(nighttimePrompt, "Nighttime")
     ]);
 
-    const getImageUrl = (result: any) => {
-      try {
-        const response = result.response;
-        if (!response?.candidates?.[0]?.content?.parts) return null;
-        
-        for (const part of response.candidates[0].content.parts) {
-          if (part.inlineData) {
-            return `data:image/png;base64,${part.inlineData.data}`;
-          }
-        }
-      } catch (e) {
-        console.error("Error extracting image from AI response:", e);
-      }
-      return null;
-    };
-
-    res.json({
-      text: analysisResult.response.text(),
-      daylightImage: getImageUrl(daylightResult),
-      nighttimeImage: getImageUrl(nighttimeResult)
+    // Send successful response to client
+    res.status(200).json({
+      text: analysisResultText,
+      daylightImage,
+      nighttimeImage
     });
 
+    console.log("--- Request Completed ---\n");
+
   } catch (error: any) {
-    console.error('Error analyzing room:', error);
-    res.status(500).json({ error: error.message || 'Internal server error' });
+    console.error('\n--- CRITICAL ENDPOINT ERROR ---');
+    console.error(error);
+    // Safely send the error to frontend instead of breaking connection
+    res.status(500).json({
+      error: 'Endpoint internal crash',
+      details: error?.message || String(error)
+    });
   }
 });
 

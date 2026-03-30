@@ -111,8 +111,14 @@ export default function App() {
     setIsAnalyzing(true);
     setResult({ text: '', daylightImage: null, nighttimeImage: null, loading: true, error: null });
 
+    const analysisPrompt = `Expert AI Interior Designer: Analyze this ${roomType} in ${style} style. 
+    Context: The room faces ${direction}, is located in ${location}, and has a budget of ₹${budget}. 
+    The user is a ${ownership}. 
+    ${pinterestUrl ? `Inspiration reference: ${pinterestUrl}` : ''}
+    Please provide a detailed design analysis, layout suggestions, Vastu-compliant color palette, lighting recommendations, and a rough cost estimation breakdown.`;
+
     try {
-      const response = await fetch('http://localhost:5000/api/analyze', {
+      const response = await fetch('/api/analyze', {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
