@@ -1,21 +1,52 @@
-import 'dotenv/config'; // Ensure dotenv is first to load keys before anything else
+import dotenv from "dotenv";
+dotenv.config();
 
-import express from 'express';
-import cors from 'cors';
-import { Buffer } from 'buffer';
+import express from "express";
+import cors from "cors";
+
+const OPENROUTER_API_KEY = process.env.OPENROUTER_API_KEY as string;
+const OPENROUTER_BASE_URL = "https://openrouter.ai/api/v1";
 
 const app = express();
 const port = process.env.PORT || 5000;
 
 app.use(cors());
-app.use(express.json({ limit: '10mb' }));
+app.use(express.json({ limit: "20mb" }));
 
 // Health check route
-app.get('/', (req, res) => {
-  res.send({ status: 'online', message: 'VastuVision AI Backend is running' });
+app.get("/", (_req, res) => {
+  res.send({ status: "online", message: "VastuVision AI Backend is running" });
 });
 
-app.post('/api/analyze', async (req, res) => {
+// ── helpers ────────────────────────────────────────────────────────────────
+
+async function openrouterChat(
+  model: string,
+  messages: object[],
+  extraBody: object = {}
+): Promise<any> {
+  const response = await fetch(`${OPENROUTER_BASE_URL}/chat/completions`, {
+    method: "POST",
+    headers: {
+      Authorization: `Bearer ${OPENROUTER_API_KEY}`,
+      "Content-Type": "application/json",
+      "HTTP-Referer": "http://localhost:5000",
+      "X-Title": "VastuVision AI",
+    },
+    body: JSON.stringify({ model, messages, ...extraBody }),
+  });
+
+  if (!response.ok) {
+    const errText = await response.text();
+    throw new Error(`OpenRouter request failed [${response.status}]: ${errText}`);
+  }
+
+  return response.json();
+}
+
+// ── POST /api/analyze ──────────────────────────────────────────────────────
+
+app.post("/api/analyze", async (req, res) => {
   console.log("\n--- New Analysis Request Received ---");
   try {
     const {
@@ -26,169 +57,115 @@ app.post('/api/analyze', async (req, res) => {
       ownership,
       direction,
       location,
-      pinterestUrl
+      pinterestUrl,
     } = req.body;
 
     if (!image) {
-      return res.status(400).json({ error: 'Image is required' });
+      return res.status(400).json({ error: "Image is required" });
     }
 
-    // Define Prompts combining all requested inputs
-    const analysisPrompt = `Expert AI Interior Designer: You are analyzing a ${roomType || 'room'} for a ${ownership || 'homeowner'} in ${location || 'the city'}. The desired style is ${style || 'modern'}, facing ${direction || 'North'}, with a budget of ₹${budget || '50000'}. Please provide a detailed design analysis, layout design, Vastu-compliant color palette, lighting suggestions, shoppable furniture links, and a cost estimation.`;
-    const daylightPrompt = `${roomType || 'room'}, ${style || 'modern'} style interior design, tailored for a ${ownership || 'homeowner'} in ${location || 'the city'}. Bright natural sunlight from ${direction || 'North'} facing window. High quality, realistic, professional architecture visualization, 8k resolution.`;
-    const nighttimePrompt = `${roomType || 'room'}, ${style || 'modern'} style interior design, tailored for a ${ownership || 'homeowner'} in ${location || 'the city'}. Cinematic artificial evening lighting, cozy ambiance. High quality, realistic, professional architecture visualization, 8k resolution.`;
-
-    // 1. Text Analysis using Qwen2.5-72B-Instruct
-    const generateText = async (promptText: string) => {
-      try {
-        console.log(`\n[QWEN] Sending prompt: ${promptText}`);
-        const response = await fetch(
-          "https://router.huggingface.co/v1/chat/completions",
-          {
-            headers: {
-              "Authorization": `Bearer ${process.env.QWEN_API}`,
-              "Content-Type": "application/json",
-            },
-            method: "POST",
-            body: JSON.stringify({
-              model: "Qwen/Qwen2.5-72B-Instruct",
-              messages: [{ role: "user", content: promptText }],
-              max_tokens: 1500,
-            }),
-          }
-        );
-
-        if (!response.ok) {
-          const errText = await response.text();
-          console.error(`[QWEN] API Error (${response.status}):\n`, errText);
-          return `AI Analysis unavailable right now. Error: ${response.status} - ${errText}`;
-        }
-
-        const data = await response.json();
-        console.log(`[QWEN] Success! Response JSON preview:\n`, JSON.stringify(data).substring(0, 200) + '...');
-        return data.choices && data.choices[0] ? data.choices[0].message.content : JSON.stringify(data);
-      } catch (err: any) {
-        console.error(`[QWEN] Network/Fetch Exception:`, err.message);
-        return "Internal error analyzing text.";
-      }
-    };
-
-    const designPrompt = `REDESIGN RENDER: ${roomType || 'room'}, ${style || 'modern'} style interior design, tailored for a ${ownership || 'homeowner'} in ${location || 'the city'}. High quality, realistic, professional architecture visualization, 8k resolution.`;
-
-    const generateDepthMap = async (baseImage: string) => {
-      const controller = new AbortController();
-      const timeout = setTimeout(() => controller.abort(), 120000); // 120 seconds timeout
-      try {
-        console.log(`\n[ControlNet - Step 1] Extracting depth map...`);
-        // User requested calling lllyasviel/sd-controlnet-depth for depth extraction
-        const response = await fetch(
-          "https://router.huggingface.co/hf-inference/models/lllyasviel/sd-controlnet-depth",
-          {
-            headers: {
-              "Authorization": `Bearer ${process.env.FLUX_API}`,
-              "Content-Type": "application/json",
-            },
-            method: "POST",
-            body: JSON.stringify({
-              inputs: baseImage
-            }),
-            signal: controller.signal
-          }
-        );
-
-        clearTimeout(timeout);
-
-        if (!response.ok) {
-          const errText = await response.text();
-          console.error(`[ControlNet - Step 1] API Error (${response.status}):\n`, errText);
-          return null;
-        }
-
-        const resBuffer = await response.arrayBuffer();
-        console.log(`[ControlNet - Step 1] Success! Depth buffer size: ${resBuffer.byteLength} bytes`);
-        return Buffer.from(resBuffer).toString('base64');
-      } catch (err: any) {
-        clearTimeout(timeout);
-        console.error(`[ControlNet - Step 1] Network/Fetch Exception:`, err.message);
-        return null;
-      }
-    };
-
-    const generateRedesign = async (depthBase64: string, promptText: string) => {
-      const controller = new AbortController();
-      const timeout = setTimeout(() => controller.abort(), 120000); // 120 seconds timeout
-      try {
-        console.log(`\n[ControlNet - Step 2] Generating redesign from depth map...`);
-        const response = await fetch(
-          "https://router.huggingface.co/hf-inference/models/lllyasviel/sd-controlnet-depth",
-          {
-            headers: {
-              "Authorization": `Bearer ${process.env.FLUX_API}`,
-              "Content-Type": "application/json",
-            },
-            method: "POST",
-            body: JSON.stringify({
-              inputs: depthBase64,
-              parameters: { prompt: promptText }
-            }),
-            signal: controller.signal
-          }
-        );
-
-        clearTimeout(timeout);
-
-        if (!response.ok) {
-          const errText = await response.text();
-          console.error(`[ControlNet - Step 2] API Error (${response.status}):\n`, errText);
-          return null;
-        }
-
-        const resBuffer = await response.arrayBuffer();
-        console.log(`[ControlNet - Step 2] Success! Redesign buffer size: ${resBuffer.byteLength} bytes`);
-        return Buffer.from(resBuffer).toString('base64');
-      } catch (err: any) {
-        clearTimeout(timeout);
-        console.error(`[ControlNet - Step 2] Network/Fetch Exception:`, err.message);
-        return null;
-      }
-    };
-
-    // Sequential & Parallel Execution
-    console.log("\nStarting AI tasks...");
-
-    // Base64 manipulation: strip data header if present for HF APIs that expect pure base64
+    // ── Normalise incoming base64 ─────────────────────────────────────────
     const cleanBase64 = image.includes(",") ? image.split(",")[1] : image;
 
-    // 1. Start Qwen Analysis and Depth Extraction in parallel
-    const textPromise = generateText(analysisPrompt);
-    const depthBase64 = await generateDepthMap(cleanBase64);
+    // ── Prompts ───────────────────────────────────────────────────────────
+    const analysisPrompt = `You are an expert AI Interior Designer. You are analyzing a ${roomType || "room"} for a ${ownership || "homeowner"} in ${location || "the city"}. The desired style is ${style || "modern"}, facing ${direction || "North"}, with a budget of ₹${budget || "50000"}${pinterestUrl ? ` (Pinterest inspiration: ${pinterestUrl})` : ""}. Please provide a detailed design analysis, layout design, Vastu-compliant color palette, lighting suggestions, shoppable furniture links, and a cost estimation.`;
 
-    // 2. Once Depth is extracted, run ControlNet redesign using the depth map
-    let redesignBase64 = null;
-    if (depthBase64) {
-      redesignBase64 = await generateRedesign(depthBase64, designPrompt);
-    } else {
-      console.error("Skipping redesign because depth map extraction failed.");
+    const designPrompt = `REDESIGN RENDER: ${roomType || "room"}, ${style || "modern"} style interior design, tailored for a ${ownership || "homeowner"} in ${location || "the city"}. High quality, realistic, professional architecture visualization, 8k resolution.`;
+
+    console.log("\nStarting AI tasks...");
+
+    // ── 1. Text Analysis ─ Hugging Face Qwen ─────────────────────────────
+    console.log("[Hugging Face] Sending prompt to Qwen...");
+    
+    const textResponse = await fetch(
+      "https://router.huggingface.co/v1/chat/completions",
+      {
+        headers: {
+          "Authorization": `Bearer ${process.env.QWEN_API}`,
+          "Content-Type": "application/json",
+        },
+        method: "POST",
+        body: JSON.stringify({
+          model: "Qwen/Qwen2.5-72B-Instruct",
+          messages: [{ role: "user", content: analysisPrompt }],
+          max_tokens: 1500,
+        }),
+      }
+    );
+
+    if (!textResponse.ok) {
+      const errText = await textResponse.text();
+      throw new Error(`Hugging Face Qwen request failed [${textResponse.status}]: ${errText}`);
     }
 
-    const analysisResultText = await textPromise;
+    const textData = await textResponse.json();
+    const analysisResultText = textData?.choices?.[0]?.message?.content ?? "";
+    console.log("[Hugging Face] Text analysis generated successfully.");
 
-    // Send successful response to client returning depth and styled image
+    // ── 2. Image Generation ─ Gemini 2.5 Flash (OpenRouter) ──────────────
+    console.log("[OpenRouter] Generating redesign image via Gemini...");
+
+    const combinedPrompt = `${designPrompt}\n\nBased on the analysis:\n${analysisResultText.substring(0, 1000)}`;
+
+    const imageData = await openrouterChat(
+      "google/gemini-2.0-flash-exp:free",
+      [
+        {
+          role: "user",
+          content: [
+            {
+              type: "text",
+              text: combinedPrompt,
+            },
+            {
+              type: "image_url",
+              image_url: { url: `data:image/jpeg;base64,${cleanBase64}` },
+            },
+          ],
+        },
+      ],
+      { modalities: ["text", "image"] }
+    );
+
+    // Extract generated image
+    let generatedImageBase64 = "";
+    const parts = imageData?.choices?.[0]?.message?.content ?? [];
+
+    if (Array.isArray(parts)) {
+      for (const part of parts) {
+        if (part?.type === "image_url" && part?.image_url?.url) {
+          const url = part.image_url.url;
+          generatedImageBase64 = url.startsWith("data:") ? url : `data:image/jpeg;base64,${url}`;
+          break;
+        }
+      }
+    }
+
+    if (!generatedImageBase64) {
+      const textContent = typeof parts === "string" ? parts : imageData?.choices?.[0]?.message?.content ?? "";
+      if (typeof textContent === "string" && textContent.trim()) {
+        const raw = textContent.trim();
+        generatedImageBase64 = raw.startsWith("data:") ? raw : `data:image/jpeg;base64,${raw}`;
+      }
+    }
+    
+    console.log("[OpenRouter] Redesign image generated successfully.");
+
+    // ── Response ──────────────────────────────────────────────────────────
     res.status(200).json({
       text: analysisResultText,
-      depthMapImage: depthBase64 ? `data:image/jpeg;base64,${depthBase64}` : null,
-      redesignedImage: redesignBase64 ? `data:image/jpeg;base64,${redesignBase64}` : null
+      image: generatedImageBase64,
+      redesignedImage: generatedImageBase64,
+      depthMapImage: null,
     });
 
     console.log("\n--- Request Completed Successfully ---");
-
   } catch (error: any) {
-    console.error('\n--- CRITICAL ENDPOINT ERROR ---');
+    console.error("\n--- CRITICAL BACKEND ENDPOINT ERROR ---");
     console.error(error);
-    // Safely send the error to frontend instead of breaking connection
     res.status(500).json({
-      error: 'Endpoint internal crash',
-      details: error?.message || String(error)
+      error: "AI generation failed",
+      details: error?.message || String(error),
     });
   }
 });
