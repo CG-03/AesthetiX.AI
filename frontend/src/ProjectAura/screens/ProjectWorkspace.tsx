@@ -13,10 +13,10 @@ interface ProjectWorkspaceProps {
 }
 
 const products = [
-  { id: 1, name: 'Aura Velvet Chair', brand: 'Atelier Studio', price: 1240, image: 'https://images.unsplash.com/photo-1598300042247-d088f8ab3a91?w=400&h=300&fit=crop' },
+  { id: 1, name: 'Vastu AI Velvet Chair', brand: 'Atelier Studio', price: 1240, image: 'https://images.unsplash.com/photo-1598300042247-d088f8ab3a91?w=400&h=300&fit=crop' },
   { id: 2, name: 'Arched Brass Floor Lamp', brand: 'Lumino Co.', price: 850, image: 'https://images.unsplash.com/photo-1540932239986-30128078f3c5?w=400&h=300&fit=crop' },
   { id: 3, name: 'Nordic Oak Coffee Table', brand: 'Hygge Living', price: 490, image: 'https://images.unsplash.com/photo-1533090368676-1fd2548ae20a?w=400&h=300&fit=crop' },
-  { id: 4, name: 'Earthen Triptych Art', brand: 'Aura Fine Arts', price: 320, image: 'https://images.unsplash.com/photo-1579783902614-a3fb3927b6a5?w=400&h=300&fit=crop' },
+  { id: 4, name: 'Earthen Triptych Art', brand: 'Vastu AI Fine Arts', price: 320, image: 'https://images.unsplash.com/photo-1579783902614-a3fb3927b6a5?w=400&h=300&fit=crop' },
 ];
 
 export default function ProjectWorkspace({ onBack, apiResult }: ProjectWorkspaceProps) {

@@ -185,7 +185,7 @@ export default function App() {
     if (collageRef.current) {
       const canvas = await html2canvas(collageRef.current);
       const link = document.createElement('a');
-      link.download = `VastuVision-BeforeAfter-${Date.now()}.png`;
+      link.download = `VastuAI-BeforeAfter-${Date.now()}.png`;
       link.href = canvas.toDataURL();
       link.click();
     }
@@ -207,7 +207,7 @@ export default function App() {
               <Home className="text-white w-6 h-6" />
             </div>
             <div>
-              <h1 className="font-serif font-bold text-2xl tracking-tight">VastuVision <span className="accent-gold">AI</span></h1>
+              <h1 className="font-serif font-bold text-2xl tracking-tight">Vastu <span className="accent-gold">AI</span></h1>
               <p className="text-[10px] uppercase tracking-[0.2em] text-gray-400 font-bold">Virtual Interior Designer</p>
             </div>
           </div>
@@ -574,7 +574,7 @@ export default function App() {
                           </div>
                         </div>
                         <div className="mt-4 text-center">
-                          <p className="text-[10px] uppercase tracking-[0.2em] text-gray-400 font-bold">Designed by VastuVision AI</p>
+                          <p className="text-[10px] uppercase tracking-[0.2em] text-gray-400 font-bold">Designed by Vastu AI</p>
                         </div>
                       </div>
                     </div>
@@ -907,7 +907,7 @@ export default function App() {
         <div className="text-center p-8 bg-[#FFFCF8] rounded-[2rem] border border-[#F3EFE0]">
           <p className="text-gray-600 font-medium">
             Transform your home with professional-grade AI design tools.
-            <span className="text-[#B3541E] ml-2 font-bold cursor-pointer hover:underline">Upgrade to unlock the full potential of VastuVision AI.</span>
+            <span className="text-[#B3541E] ml-2 font-bold cursor-pointer hover:underline">Upgrade to unlock the full potential of Vastu AI.</span>
           </p>
         </div>
       </section>
@@ -919,9 +919,9 @@ export default function App() {
             <div className="w-10 h-10 bg-[#2D2D2D] rounded-xl flex items-center justify-center shadow-md">
               <Home className="text-white w-6 h-6" />
             </div>
-            <span className="font-serif font-bold text-2xl tracking-tight">VastuVision AI</span>
+            <h1 className="font-serif font-bold text-2xl tracking-tight">Vastu <span className="accent-gold">AI</span></h1>
           </div>
-          <p className="text-gray-400 text-sm font-medium">© 2026 VastuVision AI. Modern Indian Living.</p>
+          <p className="text-gray-400 text-sm font-medium">© 2026 Vastu AI. Modern Indian Living.</p>
           <div className="flex gap-10 text-gray-400 text-sm font-bold uppercase tracking-widest">
             <a href="#" className="hover:text-[#2D2D2D] transition-colors">Privacy</a>
             <a href="#" className="hover:text-[#2D2D2D] transition-colors">Terms</a>

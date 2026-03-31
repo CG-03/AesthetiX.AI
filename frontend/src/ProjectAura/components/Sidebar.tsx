@@ -21,7 +21,7 @@ export default function Sidebar({ activePage, onNavigate }: SidebarProps) {
     <aside className="w-56 min-h-screen bg-white border-r border-gray-100 flex flex-col py-8 px-4 fixed left-0 top-0 z-40">
       {/* Logo */}
       <div className="px-3 mb-10">
-        <p className="text-[#4A6D50] font-bold text-xl tracking-tight">Project Aura</p>
+        <p className="text-[#4A6D50] font-bold text-xl tracking-tight">Vastu AI</p>
         <p className="text-[9px] font-bold uppercase tracking-[0.25em] text-gray-400 mt-0.5">
           Interior Design Portal
         </p>

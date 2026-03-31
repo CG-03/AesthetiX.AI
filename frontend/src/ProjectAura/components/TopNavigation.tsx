@@ -9,9 +9,7 @@ interface TopNavigationProps {
 export default function TopNavigation({ variant = 'onboarding', title }: TopNavigationProps) {
   return (
     <header className="w-full flex items-center justify-between py-6 px-8 md:px-12 bg-[#FBFBF9] sticky top-0 z-50">
-      <div className="flex items-center gap-2 text-[#4A6D50] font-semibold text-lg md:text-xl tracking-tight">
-        {variant === 'dashboard' ? 'Aura' : 'Project Aura'}
-      </div>
+        {variant === 'dashboard' ? 'Vastu AI' : 'Vastu AI'}
 
       {variant === 'onboarding' ? (
         <div className="flex items-center gap-3 text-sm font-medium text-gray-700">
