@@ -122,7 +122,7 @@ app.post("/api/analyze", async (req, res) => {
       // Robust extraction for Gemini 2.5 Image response
       const message = imageData?.choices?.[0]?.message;
       const content = message?.content;
-      
+
       console.log("[OpenRouter] Response content type:", typeof content);
 
       // Case 1: content is an array (OpenAI-compatible multi-part)
@@ -134,16 +134,16 @@ app.post("/api/analyze", async (req, res) => {
             break;
           }
         }
-      } 
+      }
       // Case 2: content is a string (might be raw base64, data URL, or Markdown)
       else if (typeof content === "string" && content.trim()) {
         const trimmed = content.trim();
-        
+
         // 2a: Check for embedded Markdown or data URL
         const dataUrlMatch = trimmed.match(/data:image\/[a-zA-Z]*;base64,[^\s"']*/);
         if (dataUrlMatch) {
           generatedImageBase64 = dataUrlMatch[0];
-        } 
+        }
         // 2b: Check for raw base64 (long string, no spaces)
         else if (!trimmed.includes(" ") && trimmed.length > 1000) {
           generatedImageBase64 = `data:image/jpeg;base64,${trimmed}`;
