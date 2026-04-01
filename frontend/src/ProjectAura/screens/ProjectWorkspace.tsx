@@ -2,10 +2,11 @@ import React, { useState, useEffect } from 'react';
 import { 
   PenTool, LayoutTemplate, Tag, ArrowLeft, Download, Share2, X, 
   Maximize2, ShoppingCart, Loader2, Sofa, Lamp, Layers, 
-  Paintbrush, Wrench, MoreHorizontal, BarChart3, ChevronDown, ChevronUp, KeyRound, HardHat, ExternalLink 
+  Paintbrush, Wrench, MoreHorizontal, BarChart3, ChevronDown, ChevronUp, KeyRound, HardHat, ExternalLink, Sparkles 
 } from 'lucide-react';
 import html2canvas from 'html2canvas';
 import ProductCard from '../components/ProductCard';
+import AnalysisCards from '../components/AnalysisCards';
 
 interface ProjectWorkspaceProps {
   onBack: () => void;
@@ -230,13 +231,24 @@ export default function ProjectWorkspace({ onBack, apiResult, budget = 4500, car
             </div>
           </div>
 
-          {/* Collage / Moodboard Preview */}
           <div className="bg-white rounded-[2rem] p-6 border border-gray-100 shadow-sm">
-            <h2 className="font-bold text-lg mb-4 flex items-center gap-2">
+            <h2 className="font-bold text-lg mb-6 flex items-center gap-2">
               <Tag size={18} className="text-[#4A6D50]" /> AI Analysis & Concept
             </h2>
-            <div className="prose prose-sm max-w-none text-gray-600 mb-8 leading-relaxed whitespace-pre-wrap">
-              {apiResult?.text || "Our AI is analyzing your space to provide Vastu-compliant layout suggestions, color palettes, and lighting recommendations. Traditional principles meet modern aesthetics to create your perfect sanctuary."}
+            
+            <div className="mb-10">
+              {apiResult?.text ? (
+                <AnalysisCards text={apiResult.text} />
+              ) : (
+                <div className="p-12 text-center bg-gray-50 rounded-[2.5rem] border-2 border-dashed border-gray-100 flex flex-col items-center justify-center">
+                   <div className="w-12 h-12 bg-white rounded-full flex items-center justify-center shadow-sm mb-4 animate-pulse">
+                      <Sparkles size={20} className="text-[#4A6D50]" />
+                   </div>
+                   <p className="text-gray-400 font-medium max-w-[280px] leading-relaxed">
+                     Our AI is synthesizing your space... Your Vastu-compliant transformation will appear here shortly.
+                   </p>
+                </div>
+              )}
             </div>
             <div className="grid grid-cols-3 gap-4 h-64">
               <div className="col-span-2 rounded-2xl overflow-hidden">
