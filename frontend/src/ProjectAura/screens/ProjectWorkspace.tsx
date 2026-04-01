@@ -1,13 +1,20 @@
-import React from 'react';
-import { PenTool, LayoutTemplate, Tag, ArrowLeft, Download, Share2 } from 'lucide-react';
+import React, { useState, useEffect } from 'react';
+import { 
+  PenTool, LayoutTemplate, Tag, ArrowLeft, Download, Share2, X, 
+  Maximize2, ShoppingCart, Loader2, Sofa, Lamp, Layers, 
+  Paintbrush, Wrench, MoreHorizontal, BarChart3, ChevronDown, ChevronUp 
+} from 'lucide-react';
 import ProductCard from '../components/ProductCard';
 
 interface ProjectWorkspaceProps {
   onBack: () => void;
+  budget?: number;
   apiResult?: {
     text: string;
     image: string;
     redesignedImage: string;
+    nighttimeImage?: string | null;
+    products?: any[];
     depthMapImage: string | null;
   } | null;
 }
@@ -19,7 +26,80 @@ const products = [
   { id: 4, name: 'Earthen Triptych Art', brand: 'Vastu AI Fine Arts', price: 320, image: 'https://images.unsplash.com/photo-1579783902614-a3fb3927b6a5?w=400&h=300&fit=crop' },
 ];
 
-export default function ProjectWorkspace({ onBack, apiResult }: ProjectWorkspaceProps) {
+export default function ProjectWorkspace({ onBack, apiResult, budget = 4500 }: ProjectWorkspaceProps) {
+  const [renderMode, setRenderMode] = useState<'original' | 'daylight' | 'nighttime'>('daylight');
+  const [costMode, setCostMode] = useState<'retail' | 'custom'>('retail');
+  const [selectedProduct, setSelectedProduct] = useState<any>(null);
+  const [isCollageOpen, setIsCollageOpen] = useState(false);
+  const [cartCount, setCartCount] = useState(0);
+  
+  const [remediatePrompt, setRemediatePrompt] = useState("");
+  const [isRemediating, setIsRemediating] = useState(false);
+  const [showRemediateInput, setShowRemediateInput] = useState(false);
+  const [activeImage, setActiveImage] = useState<string | null>(null);
+  const [isBreakdownOpen, setIsBreakdownOpen] = useState(false);
+
+  useEffect(() => {
+    if (apiResult?.redesignedImage) {
+      setActiveImage(apiResult.redesignedImage);
+    }
+  }, [apiResult]);
+
+  const handleShare = () => {
+    if (navigator.share) {
+      navigator.share({
+        title: 'My Vastu AI Redesign',
+        text: 'Check out my new room redesign!',
+        url: window.location.href,
+      }).catch(console.error);
+    } else {
+      alert("Sharing is not supported on this browser.");
+    }
+  };
+
+  const handlePrint = () => {
+    window.print();
+  };
+
+  const executeRemediate = async () => {
+    if (!remediatePrompt.trim() || !apiResult?.image) return;
+    setIsRemediating(true);
+    try {
+      const res = await fetch("/api/remediate", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ image: apiResult.image, promptOverrides: remediatePrompt })
+      });
+      const data = await res.json();
+      if (data.redesignedImage) {
+        setActiveImage(data.redesignedImage);
+      }
+    } catch (err) {
+      console.error(err);
+      alert("Remediation failed. Check console.");
+    } finally {
+      setIsRemediating(false);
+      setShowRemediateInput(false);
+      setRemediatePrompt("");
+    }
+  };
+
+  const getRenderImageStyle = () => {
+    // We only rely on CSS fallback if real nighttime rendering payload is missing
+    if (renderMode === 'nighttime' && !apiResult?.nighttimeImage) {
+      return { filter: 'brightness(0.5) contrast(1.2)' };
+    }
+    return {};
+  };
+
+  const getRenderSrc = () => {
+    if (renderMode === 'original') return apiResult?.image || "https://images.unsplash.com/photo-1600210492486-724fe5c67fb0?w=1200&h=800&fit=crop";
+    if (renderMode === 'nighttime' && apiResult?.nighttimeImage) return apiResult.nighttimeImage;
+    return activeImage || "https://images.unsplash.com/photo-1600210492486-724fe5c67fb0?w=1200&h=800&fit=crop";
+  };
+
+  const displayProducts = apiResult?.products && apiResult.products.length > 0 ? apiResult.products : products;
+
   return (
     <div className="min-h-screen bg-[#FBFBF9] font-sans text-[#1F1F1F]">
       {/* Top Header */}
@@ -35,10 +115,21 @@ export default function ProjectWorkspace({ onBack, apiResult }: ProjectWorkspace
         </div>
 
         <div className="flex items-center gap-3">
-          <button className="flex items-center gap-2 px-4 py-2 rounded-xl border border-gray-200 text-sm font-semibold text-gray-500 hover:bg-gray-50 transition-colors">
+          <button onClick={() => setIsCollageOpen(true)} className="flex items-center gap-2 px-4 py-2 rounded-xl border border-gray-200 text-sm font-semibold text-gray-500 hover:bg-gray-50 transition-colors print:hidden">
+            <Tag size={16} /> Before & After
+          </button>
+          <div className="relative print:hidden">
+            <button className="flex items-center justify-center w-10 h-10 rounded-xl border border-gray-200 text-gray-500 hover:bg-gray-50 transition-colors">
+              <ShoppingCart size={18} />
+            </button>
+            {cartCount > 0 && (
+              <span className="absolute -top-1 -right-1 bg-red-500 text-white text-[10px] font-bold w-4 h-4 flex items-center justify-center rounded-full">{cartCount}</span>
+            )}
+          </div>
+          <button onClick={handleShare} className="flex items-center gap-2 px-4 py-2 rounded-xl border border-gray-200 text-sm font-semibold text-gray-500 hover:bg-gray-50 transition-colors print:hidden">
             <Share2 size={16} /> Share
           </button>
-          <button className="flex items-center gap-2 px-4 py-2 rounded-xl bg-[#4A6D50] text-white text-sm font-semibold hover:bg-[#3A5640] transition-colors shadow-md shadow-[#4A6D50]/20">
+          <button onClick={handlePrint} className="flex items-center gap-2 px-4 py-2 rounded-xl bg-[#4A6D50] text-white text-sm font-semibold hover:bg-[#3A5640] transition-colors shadow-md print:hidden">
             <Download size={16} /> Export PDF
           </button>
         </div>
@@ -56,22 +147,62 @@ export default function ProjectWorkspace({ onBack, apiResult }: ProjectWorkspace
                 <LayoutTemplate size={18} className="text-[#4A6D50]" /> AI Vision Render
               </h2>
               <div className="flex bg-gray-100 p-1 rounded-xl">
-                <button className="px-4 py-1.5 rounded-lg text-sm font-semibold text-gray-500 hover:text-gray-800 transition-colors">Original</button>
-                <button className="px-4 py-1.5 bg-white shadow-sm rounded-lg text-sm font-bold text-[#1F1F1F]">Redesign</button>
+                <button 
+                  onClick={() => setRenderMode('original')}
+                  className={`px-4 py-1.5 rounded-lg text-sm font-semibold transition-colors ${renderMode === 'original' ? 'bg-white shadow-sm text-[#1F1F1F]' : 'text-gray-500 hover:text-gray-800'}`}>Original</button>
+                <button 
+                  onClick={() => setRenderMode('daylight')}
+                  className={`px-4 py-1.5 rounded-lg text-sm font-semibold transition-colors ${renderMode === 'daylight' ? 'bg-white shadow-sm text-[#1F1F1F]' : 'text-gray-500 hover:text-gray-800'}`}>Daylight</button>
+                 <button 
+                  onClick={() => setRenderMode('nighttime')}
+                  className={`px-4 py-1.5 rounded-lg text-sm font-semibold transition-colors ${renderMode === 'nighttime' ? 'bg-white shadow-sm text-[#1F1F1F]' : 'text-gray-500 hover:text-gray-800'}`}>Nighttime</button>
               </div>
             </div>
 
             <div className="aspect-video bg-gray-100 rounded-2xl overflow-hidden relative group">
+              {isRemediating && (
+                <div className="absolute inset-0 z-20 bg-black/40 backdrop-blur-sm flex flex-col items-center justify-center text-white">
+                  <Loader2 size={32} className="animate-spin mb-4" />
+                  <p className="font-bold tracking-widest uppercase text-sm">Applying AI Edits...</p>
+                </div>
+              )}
               <img 
-                src={apiResult?.redesignedImage || "https://images.unsplash.com/photo-1600210492486-724fe5c67fb0?w=1200&h=800&fit=crop"} 
+                src={getRenderSrc()} 
                 alt="AI Redesign" 
-                className="w-full h-full object-cover"
+                className={`w-full h-full object-cover transition-all duration-500 ${isRemediating ? 'scale-105 blur-sm' : ''}`}
+                style={getRenderImageStyle()}
                 referrerPolicy="no-referrer"
               />
-              {/* Floating Action Button on Image */}
-              <button className="absolute bottom-6 left-1/2 -translate-x-1/2 bg-white/90 backdrop-blur-md px-6 py-2.5 rounded-full shadow-lg font-bold text-sm flex items-center gap-2 hover:scale-105 transition-transform">
-                <PenTool size={16} /> Remediate with AI
-              </button>
+              {/* Floating Action Button for Remediation */}
+              {renderMode !== 'original' && (
+                <div className="absolute bottom-6 left-1/2 -translate-x-1/2 z-10 w-[90%] max-w-md print:hidden">
+                  {showRemediateInput ? (
+                     <div className="bg-white/95 backdrop-blur-xl p-2 rounded-2xl shadow-2xl flex gap-2 w-full animate-in slide-in-from-bottom-5">
+                       <input 
+                         type="text" 
+                         value={remediatePrompt}
+                         onChange={e => setRemediatePrompt(e.target.value)}
+                         placeholder="e.g. Change walls to dark blue..." 
+                         className="flex-1 bg-transparent px-4 py-2 text-sm focus:outline-none"
+                         onKeyDown={e => e.key === 'Enter' && executeRemediate()}
+                       />
+                       <button onClick={executeRemediate} className="bg-[#4A6D50] text-white px-4 py-2 rounded-xl text-sm font-bold shadow-sm">
+                         Update
+                       </button>
+                       <button onClick={() => setShowRemediateInput(false)} className="text-gray-400 p-2 hover:bg-gray-100 rounded-xl">
+                         <X size={16} />
+                       </button>
+                     </div>
+                  ) : (
+                    <button 
+                      onClick={() => setShowRemediateInput(true)}
+                      className="mx-auto bg-white/95 backdrop-blur-md px-6 py-3 rounded-full shadow-[0_8px_30px_rgb(0,0,0,0.12)] font-bold text-sm flex items-center gap-2 hover:scale-105 transition-transform text-[#1F1F1F]"
+                    >
+                      <PenTool size={16} className="text-[#4A6D50]" /> Remediate with AI
+                    </button>
+                  )}
+                </div>
+              )}
             </div>
           </div>
 
@@ -109,43 +240,119 @@ export default function ProjectWorkspace({ onBack, apiResult }: ProjectWorkspace
         <div className="lg:col-span-4 flex flex-col gap-8">
 
           {/* Investment Summary */}
-          <div className="bg-[#4A6D50] text-white rounded-[2rem] p-8 shadow-lg shadow-[#4A6D50]/20 relative overflow-hidden">
+          <div className="bg-[#4A6D50] text-white rounded-[2rem] p-8 shadow-lg shadow-[#4A6D50]/20 relative overflow-hidden transition-all h-[340px] flex flex-col justify-between">
             {/* Background flourish */}
             <div className="absolute -top-20 -right-20 w-48 h-48 bg-white/10 rounded-full blur-2xl" />
 
-            <h3 className="text-[11px] font-bold uppercase tracking-[0.2em] text-white/70 mb-2">Estimated Investment</h3>
-            <p className="text-4xl font-bold tracking-tight mb-8">$3,200</p>
-
-            <div className="space-y-4 text-sm">
-              <div className="flex justify-between items-center border-b border-white/10 pb-3">
-                <span className="text-white/80">Furniture & Decor</span>
-                <span className="font-semibold">$2,900</span>
+            <div className="relative z-10 flex justify-between items-start mb-6">
+              <div>
+                <h3 className="text-[11px] font-bold uppercase tracking-[0.2em] text-white/70 mb-2">Estimated Budget Distribution</h3>
+                <p className="text-4xl font-bold tracking-tight">${budget.toLocaleString()}</p>
               </div>
-              <div className="flex justify-between items-center border-b border-white/10 pb-3">
-                <span className="text-white/80">Paint & Materials</span>
-                <span className="font-semibold">$150</span>
-              </div>
-              <div className="flex justify-between items-center">
-                <span className="text-white/80">Contingency</span>
-                <span className="font-semibold">$150</span>
+              <div className="bg-white/20 p-1 rounded-lg flex text-[10px] font-bold uppercase shrink-0 print:hidden shadow-inner">
+                <button 
+                  onClick={() => setCostMode('retail')}
+                  className={`px-3 py-1.5 rounded transition-all duration-300 ${costMode === 'retail' ? 'bg-white text-[#4A6D50] shadow-sm' : 'text-white hover:bg-white/10'}`}>Turnkey</button>
+                <button 
+                  onClick={() => setCostMode('custom')}
+                  className={`px-3 py-1.5 rounded transition-all duration-300 ${costMode === 'custom' ? 'bg-white text-[#4A6D50] shadow-sm' : 'text-white hover:bg-white/10'}`}>Material+Labor</button>
               </div>
             </div>
 
-            <button className="w-full mt-8 bg-white text-[#4A6D50] py-3.5 rounded-xl font-bold shadow-md hover:bg-gray-50 transition-colors text-sm">
-              View Detailed Breakdown
+            <div className={`space-y-3 overflow-hidden transition-all duration-500 ease-in-out relative z-10 ${isBreakdownOpen ? 'max-h-[500px] mb-6 opacity-100' : 'max-h-0 opacity-0'}`}>
+              <div className="pt-2" />
+              {costMode === 'retail' ? (
+                <>
+                  <div className="flex justify-between items-center border-b border-white/10 pb-3">
+                    <div className="flex items-center gap-3">
+                      <div className="p-2 bg-white/10 rounded-lg"><Sofa size={14} /></div>
+                      <span className="text-white/80">Furniture & Decor</span>
+                    </div>
+                    <span className="font-semibold">${(budget * 0.40).toLocaleString()}</span>
+                  </div>
+                  <div className="flex justify-between items-center border-b border-white/10 pb-3">
+                    <div className="flex items-center gap-3">
+                      <div className="p-2 bg-white/10 rounded-lg"><Layers size={14} /></div>
+                      <span className="text-white/80">Flooring</span>
+                    </div>
+                    <span className="font-semibold">${(budget * 0.20).toLocaleString()}</span>
+                  </div>
+                  <div className="flex justify-between items-center border-b border-white/10 pb-3">
+                    <div className="flex items-center gap-3">
+                      <div className="p-2 bg-white/10 rounded-lg"><Lamp size={14} /></div>
+                      <span className="text-white/80">Lighting</span>
+                    </div>
+                    <span className="font-semibold">${(budget * 0.15).toLocaleString()}</span>
+                  </div>
+                  <div className="flex justify-between items-center border-b border-white/10 pb-3">
+                    <div className="flex items-center gap-3">
+                      <div className="p-2 bg-white/10 rounded-lg"><Paintbrush size={14} /></div>
+                      <span className="text-white/80">Wall Paint</span>
+                    </div>
+                    <span className="font-semibold">${(budget * 0.10).toLocaleString()}</span>
+                  </div>
+                  <div className="flex justify-between items-center border-b border-white/10 pb-3">
+                    <div className="flex items-center gap-3">
+                      <div className="p-2 bg-white/10 rounded-lg"><Wrench size={14} /></div>
+                      <span className="text-white/80">Labor Costs</span>
+                    </div>
+                    <span className="font-semibold">${(budget * 0.10).toLocaleString()}</span>
+                  </div>
+                  <div className="flex justify-between items-center">
+                    <div className="flex items-center gap-3">
+                      <div className="p-2 bg-white/10 rounded-lg"><MoreHorizontal size={14} /></div>
+                      <span className="text-white/80">Miscellaneous</span>
+                    </div>
+                    <span className="font-semibold">${(budget * 0.05).toLocaleString()}</span>
+                  </div>
+                </>
+              ) : (
+                 <>
+                  <div className="flex justify-between items-center border-b border-white/10 pb-3">
+                    <div className="flex items-center gap-3">
+                      <div className="p-2 bg-white/10 rounded-lg"><BarChart3 size={14} /></div>
+                      <span className="text-white/80">Raw Materials</span>
+                    </div>
+                    <span className="font-semibold">${(budget * 0.45).toLocaleString()}</span>
+                  </div>
+                  <div className="flex justify-between items-center border-b border-white/10 pb-3">
+                    <div className="flex items-center gap-3">
+                      <div className="p-2 bg-white/10 rounded-lg"><Wrench size={14} /></div>
+                      <span className="text-white/80">Carpenter & Civil</span>
+                    </div>
+                    <span className="font-semibold">${(budget * 0.40).toLocaleString()}</span>
+                  </div>
+                  <div className="flex justify-between items-center">
+                    <div className="flex items-center gap-3">
+                      <div className="p-2 bg-white/10 rounded-lg"><Tag size={14} /></div>
+                      <span className="text-white/80">Contingency</span>
+                    </div>
+                    <span className="font-semibold">${(budget * 0.15).toLocaleString()}</span>
+                  </div>
+                </>
+              )}
+            </div>
+
+            <button 
+              onClick={() => setIsBreakdownOpen(!isBreakdownOpen)}
+              className="w-full bg-white text-[#4A6D50] py-3.5 rounded-xl font-bold shadow-md hover:bg-gray-50 transition-all active:scale-95 text-sm relative z-10 mt-auto flex items-center justify-center gap-2"
+            >
+              <BarChart3 size={16} />
+              {isBreakdownOpen ? 'Hide Detail Breakdown' : 'View Detailed Breakdown'}
+              {isBreakdownOpen ? <ChevronUp size={16} /> : <ChevronDown size={16} />}
             </button>
           </div>
 
           {/* Sourcing List */}
           <div className="bg-white rounded-[2rem] p-6 border border-gray-100 shadow-sm flex-1">
             <div className="flex items-center justify-between mb-6">
-              <h2 className="font-bold text-lg">Top Picks</h2>
-              <span className="bg-gray-100 text-gray-500 text-xs font-bold px-3 py-1 rounded-full uppercase tracking-wider">4 Items</span>
+              <h2 className="font-bold text-lg">Top Picks & Sourcing</h2>
+              <span className="bg-gray-100 text-gray-500 text-xs font-bold px-3 py-1 rounded-full uppercase tracking-wider">{displayProducts.length} Items</span>
             </div>
 
             <div className="grid grid-cols-2 gap-4">
-              {products.map(p => (
-                <ProductCard key={p.id} {...p} />
+              {displayProducts.map((p: any) => (
+                <ProductCard key={p.id || Math.random()} {...p} onClick3D={() => setSelectedProduct(p)} />
               ))}
             </div>
           </div>
@@ -153,6 +360,90 @@ export default function ProjectWorkspace({ onBack, apiResult }: ProjectWorkspace
         </div>
 
       </main>
+
+      {/* 3D Product View Modal */}
+      {selectedProduct && (
+        <div className="fixed inset-0 z-[100] flex items-center justify-center p-4 bg-black/50 backdrop-blur-sm">
+          <div className="bg-white rounded-3xl w-full max-w-2xl overflow-hidden shadow-2xl relative border border-gray-100">
+            <button 
+              onClick={() => setSelectedProduct(null)} 
+              className="absolute top-4 right-4 z-10 w-8 h-8 flex items-center justify-center bg-white/80 backdrop-blur-md rounded-full text-gray-600 hover:bg-white transition-colors"
+            >
+              <X size={18} />
+            </button>
+            <div className="flex flex-col md:flex-row h-auto md:h-[400px]">
+              <div className="w-full h-64 md:h-full md:w-1/2 bg-[#FAFAFA] flex items-center justify-center relative group">
+                <img src={selectedProduct.image} alt={selectedProduct.name} className="w-full h-full object-cover opacity-90" />
+                <div className="absolute inset-0 flex items-center justify-center pointer-events-none">
+                  <div className="bg-black/60 text-white px-4 py-2 rounded-full backdrop-blur-sm text-[10px] font-bold tracking-widest uppercase flex items-center gap-2">
+                    <Maximize2 size={12} /> Drag to rotate 360°
+                  </div>
+                </div>
+              </div>
+              <div className="p-8 w-full md:w-1/2 flex flex-col justify-center">
+                <span className="text-[10px] font-bold uppercase tracking-[0.2em] text-[#4A6D50] mb-2">{selectedProduct.brand}</span>
+                <h3 className="text-2xl font-bold tracking-tight mb-2">{selectedProduct.name}</h3>
+                <p className="text-xl font-bold text-gray-500 mb-6">${selectedProduct.price.toLocaleString()}</p>
+                <p className="text-sm text-gray-500 mb-8 leading-relaxed">
+                  Interactive 3D model generated via SAM. Rotate, zoom, and inspect details to ensure it fits perfectly into your space.
+                </p>
+                <div className="flex gap-3 mt-auto">
+                  <button 
+                    onClick={() => { setCartCount(c => c + 1); setSelectedProduct(null); }}
+                    className="flex-1 bg-[#4A6D50] text-white font-bold py-3.5 rounded-xl shadow-md hover:bg-[#3A5640] transition-colors text-xs uppercase tracking-wider"
+                  >
+                    Add to Cart
+                  </button>
+                  <button onClick={() => setSelectedProduct(null)} className="flex-1 border-2 border-gray-200 text-gray-600 font-bold py-3.5 rounded-xl hover:border-gray-300 transition-colors text-xs uppercase tracking-wider">Cancel</button>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Before & After Collage Modal */}
+      {isCollageOpen && (
+        <div className="fixed inset-0 z-[100] flex items-center justify-center p-4 bg-black/80 backdrop-blur-sm" onClick={() => setIsCollageOpen(false)}>
+          <div className="bg-white rounded-[2rem] p-6 max-w-4xl w-full relative" onClick={e => e.stopPropagation()}>
+            <button 
+              onClick={() => setIsCollageOpen(false)} 
+              className="absolute -top-12 right-0 md:-right-12 z-10 w-10 h-10 flex items-center justify-center rounded-full text-white hover:bg-white/20 transition-colors"
+            >
+              <X size={24} />
+            </button>
+            <div className="text-center mb-6 mt-2">
+              <h2 className="text-2xl font-bold tracking-tight">VastuVision Transformation</h2>
+              <p className="text-gray-500 text-sm">Master Bedroom Redo</p>
+            </div>
+            <div className="flex flex-col md:flex-row gap-4 mb-8">
+              <div className="flex-1 aspect-video rounded-xl overflow-hidden relative border border-gray-200 shadow-sm">
+                <img src={apiResult?.image || "https://images.unsplash.com/photo-1600210492486-724fe5c67fb0?w=1200&h=800&fit=crop"} alt="Before" className="w-full h-full object-cover" />
+                <div className="absolute top-4 left-4 bg-black/60 text-white px-4 py-1.5 rounded-full text-xs font-bold uppercase tracking-widest backdrop-blur-sm">Before</div>
+              </div>
+              <div className="flex-1 aspect-video rounded-xl overflow-hidden relative border border-[#4A6D50] shadow-[0_4px_30px_rgba(74,109,80,0.15)]">
+                <img src={activeImage || "https://images.unsplash.com/photo-1600210492486-724fe5c67fb0?w=1200&h=800&fit=crop"} alt="After" className="w-full h-full object-cover" />
+                <div className="absolute top-4 left-4 bg-[#4A6D50] text-white px-4 py-1.5 rounded-full text-xs font-bold uppercase tracking-widest shadow-sm">After</div>
+              </div>
+            </div>
+            <div className="flex flex-col sm:flex-row justify-center gap-4">
+              <button className="flex justify-center items-center gap-2 px-8 py-3.5 rounded-xl bg-[#4A6D50] text-white text-sm font-bold shadow-md hover:bg-[#3A5640] transition-colors" onClick={handleShare}>
+                <Share2 size={16} /> Share Collage
+              </button>
+              <button className="flex justify-center items-center gap-2 px-8 py-3.5 rounded-xl border-2 border-gray-200 text-gray-700 text-sm font-bold hover:bg-gray-50 transition-colors">
+                <Download size={16} /> Download High-Res
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+      
+      <style>{`
+        @media print {
+          body { -webkit-print-color-adjust: exact; print-color-adjust: exact; }
+          .print\\:hidden { display: none !important; }
+        }
+      `}</style>
     </div>
   );
 }

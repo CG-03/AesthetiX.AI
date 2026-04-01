@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { Search, Plus, ChevronLeft, ChevronRight } from 'lucide-react';
+import { Search, Plus, ChevronLeft, ChevronRight, Trash2 } from 'lucide-react';
 import Sidebar from '../components/Sidebar';
 
 type Page = 'home' | 'my-designs' | 'saved-products' | 'settings' | 'profile';
@@ -8,60 +8,25 @@ interface MyDesignsProps {
   onNavigate: (page: Page) => void;
   activePage: Page;
   onNewProject: () => void;
-  onOpenWorkspace: (id: number) => void;
+  onOpenWorkspace: (design: any) => void;
 }
 
-const designs = [
-  {
-    id: 1,
-    title: 'Master Bedroom Redo',
-    roomType: 'Living Room',
-    budget: '$3,200',
-    date: 'Oct 12, 2023',
-    before: 'https://images.unsplash.com/photo-1522771739844-6a9f6d5f14af?w=600&h=400&fit=crop',
-    after: 'https://images.unsplash.com/photo-1600210492486-724fe5c67fb0?w=600&h=400&fit=crop',
-  },
-  {
-    id: 2,
-    title: 'Sage Kitchen Concept',
-    roomType: 'Kitchen',
-    budget: '$8,500',
-    date: 'Sep 28, 2023',
-    before: 'https://images.unsplash.com/photo-1556909114-f6e7ad7d3136?w=600&h=400&fit=crop',
-    after: 'https://images.unsplash.com/photo-1556909172-54557c7e4fb7?w=600&h=400&fit=crop',
-  },
-  {
-    id: 3,
-    title: 'Reading Nook Retreat',
-    roomType: 'Living Room',
-    budget: '$1,450',
-    date: 'Nov 02, 2023',
-    before: 'https://images.unsplash.com/photo-1555041469-a586c61ea9bc?w=600&h=400&fit=crop',
-    after: 'https://images.unsplash.com/photo-1567767292278-a4f21aa2d36e?w=600&h=400&fit=crop',
-  },
-  {
-    id: 4,
-    title: 'Home Office Studio',
-    roomType: 'Office',
-    budget: '$2,100',
-    date: 'Dec 15, 2023',
-    before: 'https://images.unsplash.com/photo-1593062096033-9a26b09da705?w=600&h=400&fit=crop',
-    after: 'https://images.unsplash.com/photo-1524758631624-e2822e304c36?w=600&h=400&fit=crop',
-  },
-  {
-    id: 5,
-    title: 'Scandi-Boho Guest Suite',
-    roomType: 'Bedroom',
-    budget: '$4,800',
-    date: 'Jan 05, 2024',
-    before: 'https://images.unsplash.com/photo-1583847268964-b28dc8f51f92?w=600&h=400&fit=crop',
-    after: 'https://images.unsplash.com/photo-1540518614846-7eded433c457?w=600&h=400&fit=crop',
-  },
-];
-
 export default function MyDesigns({ onNavigate, activePage, onNewProject, onOpenWorkspace }: MyDesignsProps) {
+  const [designs, setDesigns] = React.useState<any[]>([]);
   const [activeFilter, setActiveFilter] = useState('All Projects');
   const filters = ['All Projects', 'Residential', 'Commercial'];
+
+  React.useEffect(() => {
+    const history = localStorage.getItem('vastu_saved_designs');
+    if (history) setDesigns(JSON.parse(history));
+  }, []);
+
+  const handleDelete = (id: string, e: React.MouseEvent) => {
+    e.stopPropagation();
+    const updated = designs.filter(d => d.id !== id);
+    setDesigns(updated);
+    localStorage.setItem('vastu_saved_designs', JSON.stringify(updated));
+  };
 
   return (
     <div className="flex min-h-screen bg-[#FBFBF9] font-sans text-[#1F1F1F]">
@@ -109,69 +74,52 @@ export default function MyDesigns({ onNavigate, activePage, onNewProject, onOpen
           </div>
 
           {/* Cards Grid */}
-          <div className="grid md:grid-cols-2 xl:grid-cols-3 gap-6 mb-10">
-            {designs.map(design => (
-              <button
-                key={design.id}
-                onClick={() => onOpenWorkspace(design.id)}
-                className="bg-white rounded-[1.5rem] border border-gray-100 overflow-hidden hover:shadow-lg transition-all text-left group"
-              >
-                {/* Before / After split image */}
-                <div className="relative aspect-[4/3] overflow-hidden">
-                  {/* Before (left half, greyscale) */}
-                  <div className="absolute inset-y-0 left-0 w-1/2 overflow-hidden">
-                    <img
-                      src={design.before}
-                      alt="Before"
-                      className="w-[200%] h-full object-cover grayscale"
-                      referrerPolicy="no-referrer"
+          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-8 mb-10">
+            {designs.length > 0 ? (
+              designs.map((design) => (
+                <div 
+                  key={design.id} 
+                  onClick={() => onOpenWorkspace(design)}
+                  className="group bg-white rounded-3xl overflow-hidden border border-gray-100 shadow-sm hover:shadow-xl transition-all cursor-pointer"
+                >
+                  <div className="aspect-[4/3] relative overflow-hidden">
+                    <img 
+                      src={design.redesignedImage || design.image} 
+                      alt={design.roomType} 
+                      className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-500" 
                     />
-                    <span className="absolute top-3 left-3 text-[10px] font-bold bg-black/60 text-white px-2 py-0.5 rounded-full uppercase tracking-wider">
-                      Before
-                    </span>
-                  </div>
-                  {/* After (right half, colour) */}
-                  <div className="absolute inset-y-0 right-0 w-1/2 overflow-hidden">
-                    <img
-                      src={design.after}
-                      alt="After"
-                      className="w-[200%] h-full object-cover -translate-x-full group-hover:scale-105 transition-transform duration-500"
-                      referrerPolicy="no-referrer"
-                    />
-                    <span className="absolute top-3 right-3 text-[10px] font-bold bg-[#4A6D50] text-white px-2 py-0.5 rounded-full uppercase tracking-wider">
-                      After
-                    </span>
-                  </div>
-                  {/* Divider line */}
-                  <div className="absolute inset-y-0 left-1/2 w-px bg-white/80 z-10" />
-                </div>
-
-                {/* Card body */}
-                <div className="p-5">
-                  <div className="flex items-start justify-between mb-3">
-                    <h3 className="font-bold text-[15px] leading-snug">{design.title}</h3>
-                    <span className="text-[10px] font-bold uppercase tracking-wider bg-gray-100 text-gray-500 px-2 py-0.5 rounded-full shrink-0 ml-2">
-                      {design.roomType}
-                    </span>
-                  </div>
-                  <div className="flex items-center justify-between text-[11px] text-gray-400">
-                    <div>
-                      <span className="uppercase tracking-widest font-bold text-[9px] text-gray-400 block mb-0.5">Budget</span>
-                      <span className="font-bold text-[#1F1F1F] text-sm">Est. {design.budget}</span>
-                    </div>
-                    <div className="text-right">
-                      <span className="uppercase tracking-widest font-bold text-[9px] text-gray-400 block mb-0.5">Generated</span>
-                      <span className="font-semibold text-[#1F1F1F] text-[12px]">{design.date}</span>
+                    <div className="absolute top-4 right-4 z-10 flex gap-2 opacity-0 group-hover:opacity-100 transition-opacity">
+                      <button 
+                        onClick={(e) => handleDelete(design.id, e)}
+                        className="p-2 bg-red-500 text-white rounded-xl shadow-lg hover:bg-red-600"
+                      >
+                        <Trash2 size={16} />
+                      </button>
                     </div>
                   </div>
+                  <div className="p-6">
+                    <div className="flex items-center justify-between mb-2">
+                      <span className="text-[10px] font-bold uppercase tracking-[0.2em] text-[#4A6D50]">
+                        {design.roomType || 'Design'}
+                      </span>
+                      <span className="text-[10px] font-bold text-gray-400">{design.date}</span>
+                    </div>
+                    <h3 className="font-bold text-lg mb-1 group-hover:text-[#4A6D50] transition-colors">
+                      {design.style || design.title}
+                    </h3>
+                  </div>
                 </div>
-              </button>
-            ))}
-
+              ))
+            ) : (
+              <div className="col-span-3 py-24 text-center bg-white rounded-[2rem] border border-dashed border-gray-200">
+                <p className="text-gray-400 font-medium">No designs saved yet.</p>
+              </div>
+            )}
+            
             {/* Start a New Vision Card */}
             <button
               onClick={onNewProject}
-              className="bg-white rounded-[1.5rem] border-2 border-dashed border-gray-200 flex flex-col items-center justify-center p-8 text-center hover:border-[#4A6D50] hover:bg-[#4A6D50]/5 transition-all group min-h-[280px]"
+              className="bg-white rounded-[2.5rem] border-2 border-dashed border-gray-100 flex flex-col items-center justify-center p-8 text-center hover:border-[#4A6D50] hover:bg-[#4A6D50]/5 transition-all group min-h-[300px]"
             >
               <div className="w-12 h-12 rounded-full bg-[#4A6D50] flex items-center justify-center mb-4 group-hover:scale-110 transition-transform shadow-lg shadow-[#4A6D50]/30">
                 <Plus size={22} className="text-white" />
@@ -188,11 +136,7 @@ export default function MyDesigns({ onNavigate, activePage, onNewProject, onOpen
             <div className="flex gap-8">
               <div>
                 <p className="text-[10px] font-bold uppercase tracking-widest text-gray-400 mb-1">Total Renders</p>
-                <p className="text-2xl font-bold text-[#1F1F1F]">42</p>
-              </div>
-              <div>
-                <p className="text-[10px] font-bold uppercase tracking-widest text-gray-400 mb-1">Total Budget Est.</p>
-                <p className="text-2xl font-bold text-[#1F1F1F]">$21.4k</p>
+                <p className="text-2xl font-bold text-[#1F1F1F]">{designs.length}</p>
               </div>
             </div>
             <div className="flex items-center gap-2">

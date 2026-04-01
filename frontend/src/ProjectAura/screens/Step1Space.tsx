@@ -32,6 +32,11 @@ export default function Step1Space({ onNext, onBack, onDataChange }: Step1SpaceP
     fileInputRef.current?.click();
   };
 
+  const cameraInputRef = React.useRef<HTMLInputElement>(null);
+  const triggerCameraInput = () => {
+    cameraInputRef.current?.click();
+  };
+
   const vastuDirections = [
     { id: 'NW', icon: Wind, label: 'NW' },
     { id: 'N', icon: ArrowUp, label: 'N' },
@@ -110,6 +115,14 @@ export default function Step1Space({ onNext, onBack, onDataChange }: Step1SpaceP
                     accept="image/*" 
                     onChange={handleFileChange} 
                   />
+                  <input 
+                    type="file" 
+                    ref={cameraInputRef} 
+                    className="hidden" 
+                    accept="image/*" 
+                    capture="environment"
+                    onChange={handleFileChange} 
+                  />
                   <button 
                     onClick={triggerFileInput}
                     className="w-full bg-[#EFEFEF]/90 backdrop-blur-sm hover:bg-white text-[#1F1F1F] py-3 rounded-xl text-xs font-semibold flex items-center justify-center gap-2 transition-colors shadow-sm"
@@ -117,7 +130,10 @@ export default function Step1Space({ onNext, onBack, onDataChange }: Step1SpaceP
                     <Upload size={14} /> {preview ? 'Change Photo' : 'Browse Files'}
                   </button>
                   {!preview && (
-                    <button className="w-full bg-white border border-gray-200 hover:bg-gray-50 text-[#4A6D50] py-3 rounded-xl text-xs font-semibold flex items-center justify-center gap-2 transition-colors">
+                    <button 
+                      onClick={triggerCameraInput}
+                      className="w-full bg-white border border-gray-200 hover:bg-gray-50 text-[#4A6D50] py-3 rounded-xl text-xs font-semibold flex items-center justify-center gap-2 transition-colors"
+                    >
                       <Camera size={14} /> Open Camera
                     </button>
                   )}

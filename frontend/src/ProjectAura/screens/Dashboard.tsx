@@ -8,14 +8,20 @@ interface DashboardProps {
   onNavigate: (page: Page) => void;
   activePage: Page;
   onNewProject: () => void;
+  onOpenProject: (design: any) => void;
 }
 
-export default function Dashboard({ onNavigate, activePage, onNewProject }: DashboardProps) {
-  const recentProjects = [
-    { title: 'Master Bedroom Redo', image: 'https://images.unsplash.com/photo-1600210492486-724fe5c67fb0?w=600&h=400&fit=crop', date: 'Oct 12, 2023' },
-    { title: 'Sage Kitchen Concept', image: 'https://images.unsplash.com/photo-1556909172-54557c7e4fb7?w=600&h=400&fit=crop', date: 'Sep 28, 2023' },
-    { title: 'Reading Nook Retreat', image: 'https://images.unsplash.com/photo-1567767292278-a4f21aa2d36e?w=600&h=400&fit=crop', date: 'Nov 02, 2023' },
-  ];
+export default function Dashboard({ onNavigate, activePage, onNewProject, onOpenProject }: DashboardProps) {
+  const [userName, setUserName] = React.useState('Sarah');
+  const [recentProjects, setRecentProjects] = React.useState<any[]>([]);
+
+  React.useEffect(() => {
+    const savedUser = localStorage.getItem('vastu_user');
+    if (savedUser) setUserName(JSON.parse(savedUser).name.split(' ')[0]);
+
+    const history = localStorage.getItem('vastu_saved_designs');
+    if (history) setRecentProjects(JSON.parse(history).slice(0, 3));
+  }, []);
 
   const inspiration = [
     'https://images.unsplash.com/photo-1524758631624-e2822e304c36?w=400&h=400&fit=crop',
@@ -32,8 +38,8 @@ export default function Dashboard({ onNavigate, activePage, onNewProject }: Dash
         {/* Welcome Header */}
         <header className="mb-12 flex items-end justify-between">
           <div>
-            <h1 className="text-3xl font-bold tracking-tight mb-2">Welcome back, Sarah.</h1>
-            <p className="text-gray-500 text-sm">You have 3 active projects in your workspace.</p>
+            <h1 className="text-3xl font-bold tracking-tight mb-2">Welcome back, {userName}.</h1>
+            <p className="text-gray-500 text-sm">You have {recentProjects.length} active projects in your workspace.</p>
           </div>
           <button 
             onClick={onNewProject}
@@ -56,19 +62,23 @@ export default function Dashboard({ onNavigate, activePage, onNewProject }: Dash
           </div>
 
           <div className="grid grid-cols-3 gap-6">
-            {recentProjects.map((project, i) => (
-              <div key={i} className="group cursor-pointer">
-                <div className="aspect-[4/3] rounded-2xl overflow-hidden bg-gray-100 mb-4 border border-gray-100">
+            {recentProjects.length > 0 ? recentProjects.map((project, i) => (
+              <div key={i} className="group cursor-pointer" onClick={() => onOpenProject(project)}>
+                <div className="aspect-[4/3] rounded-2xl overflow-hidden bg-gray-100 mb-4 border border-gray-100 dark:border-gray-800 shadow-sm group-hover:shadow-md transition-all">
                   <img 
-                    src={project.image} 
-                    alt={project.title} 
+                    src={project.redesignedImage || project.image} 
+                    alt={project.roomType || project.title} 
                     className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-500" 
                   />
                 </div>
-                <h3 className="font-bold text-sm mb-1">{project.title}</h3>
-                <p className="text-xs text-gray-400 font-medium">{project.date}</p>
+                <h3 className="font-bold text-sm mb-1">{project.style || project.title}</h3>
+                <p className="text-xs text-gray-400 font-medium">{project.roomType || project.date}</p>
               </div>
-            ))}
+            )) : (
+              <div className="col-span-3 py-12 text-center bg-white dark:bg-gray-800 rounded-2xl border border-dashed border-gray-200 dark:border-gray-700">
+                <p className="text-gray-400 font-medium">No recent projects yet.</p>
+              </div>
+            )}
           </div>
         </section>
 

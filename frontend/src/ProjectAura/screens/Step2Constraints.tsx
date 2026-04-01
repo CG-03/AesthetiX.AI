@@ -13,9 +13,36 @@ export default function Step2Constraints({ onNext, onBack, onDataChange }: Step2
   const [ownership, setOwnership] = useState<'own' | 'rent'>('own');
   const [location, setLocation] = useState('');
   const [budget, setBudget] = useState(4500);
+  const [isDetecting, setIsDetecting] = useState(false);
 
   const minBudget = 500;
   const maxBudget = 10000;
+
+  const handleDetectLocation = () => {
+    setIsDetecting(true);
+    if ("geolocation" in navigator) {
+      navigator.geolocation.getCurrentPosition(
+        (position) => {
+          setTimeout(() => {
+            const mockedLocation = "Mumbai, Maharashtra";
+            setLocation(mockedLocation);
+            onDataChange?.({ ownership, location: mockedLocation, budget });
+            setIsDetecting(false);
+          }, 1000);
+        },
+        (error) => {
+          console.error("Error detecting location", error);
+          setTimeout(() => {
+            setLocation("New York, USA");
+            onDataChange?.({ ownership, location: "New York, USA", budget });
+            setIsDetecting(false);
+          }, 500);
+        }
+      );
+    } else {
+      setIsDetecting(false);
+    }
+  };
 
   const handleBudgetChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const val = Number(e.target.value);
@@ -85,8 +112,17 @@ export default function Step2Constraints({ onNext, onBack, onDataChange }: Step2
                 placeholder="Search city, neighborhood, or zip code"
                 className="w-full bg-[#F8F8F7] border border-gray-200 rounded-2xl pl-10 pr-28 py-3.5 text-sm text-gray-700 placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-[#4A6D50]/30 focus:border-[#4A6D50] transition-all"
               />
-              <button className="absolute right-2 top-1/2 -translate-y-1/2 flex items-center gap-1.5 bg-[#F0F0EE] text-gray-600 text-xs font-semibold px-3 py-1.5 rounded-xl hover:bg-gray-200 transition-colors">
-                <Navigation size={12} /> Detect
+              <button 
+                onClick={handleDetectLocation}
+                disabled={isDetecting}
+                className="absolute right-2 top-1/2 -translate-y-1/2 flex items-center gap-1.5 bg-[#F0F0EE] text-gray-600 text-xs font-semibold px-3 py-1.5 rounded-xl hover:bg-gray-200 transition-colors disabled:opacity-50"
+              >
+                {isDetecting ? (
+                  <div className="w-3 h-3 border-2 border-gray-400 border-t-transparent rounded-full animate-spin" />
+                ) : (
+                  <Navigation size={12} /> 
+                )}
+                {isDetecting ? 'Detecting...' : 'Detect'}
               </button>
             </div>
           </div>

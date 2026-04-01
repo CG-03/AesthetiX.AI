@@ -12,6 +12,8 @@ interface Step3AestheticProps {
 
 export default function Step3Aesthetic({ onBack, onGenerate, onDataChange, isGenerating }: Step3AestheticProps) {
   const [activePill, setActivePill] = useState('Minimalist');
+  const [referenceImages, setReferenceImages] = useState<string[]>([]);
+  const fileInputRef = React.useRef<HTMLInputElement>(null);
 
   const handlePillClick = (pill: string) => {
     setActivePill(pill);
@@ -26,6 +28,35 @@ export default function Step3Aesthetic({ onBack, onGenerate, onDataChange, isGen
     'Traditional'
   ];
 
+  const triggerFileInput = () => {
+    fileInputRef.current?.click();
+  };
+
+  const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const files = Array.from(e.target.files || []);
+    if (files.length > 0) {
+      const remainingSlots = 5 - referenceImages.length;
+      const filesToProcess = files.slice(0, remainingSlots);
+      
+      const newImages: string[] = [];
+      let processed = 0;
+      
+      filesToProcess.forEach(file => {
+        const reader = new FileReader();
+        reader.onloadend = () => {
+          newImages.push(reader.result as string);
+          processed += 1;
+          if (processed === filesToProcess.length) {
+             const updatedImages = [...referenceImages, ...newImages].slice(0, 5);
+             setReferenceImages(updatedImages);
+             onDataChange?.({ style: activePill }); // Just an example, maybe pass referenceImages too
+          }
+        };
+        reader.readAsDataURL(file);
+      });
+    }
+  };
+
   return (
     <div className="min-h-screen bg-[#FBFBF9] font-sans text-[#1F1F1F] flex flex-col">
       <TopNavigation variant="onboarding" />
@@ -34,7 +65,9 @@ export default function Step3Aesthetic({ onBack, onGenerate, onDataChange, isGen
         <StepIndicator currentStep={3} totalSteps={3} variant="full" />
 
         <div className="text-center max-w-xl mx-auto mb-16 space-y-4">
-          <h1 className="text-4xl md:text-5xl font-bold tracking-tight">Define your aesthetic.</h1>
+          <h1 className="text-4xl md:text-5xl font-bold tracking-tight flex items-center justify-center gap-3">
+            <Sparkles className="text-[#4A6D50] w-8 h-8 md:w-10 md:h-10" /> Define your aesthetic.
+          </h1>
           <p className="text-gray-500 text-[15px] leading-relaxed">
             Let's curate your vision. Connect your inspiration sources to help Aura
             understand your unique design language.
@@ -59,18 +92,43 @@ export default function Step3Aesthetic({ onBack, onGenerate, onDataChange, isGen
 
         {/* Upload References */}
         <div className="text-center mb-16 w-full">
-          <p className="font-medium text-[15px] mb-6">Upload style references</p>
+          <p className="font-medium text-[15px] mb-6">Upload style references (up to 5)</p>
           <div className="flex justify-center gap-4 flex-wrap">
+            <input 
+              type="file" 
+              multiple 
+              className="hidden" 
+              ref={fileInputRef} 
+              accept="image/*" 
+              onChange={handleFileChange} 
+            />
             {[...Array(5)].map((_, i) => (
               <button
                 key={i}
-                className="w-24 h-24 md:w-28 md:h-28 rounded-2xl border-2 border-dashed border-gray-200 flex items-center justify-center text-gray-400 hover:text-[#4A6D50] hover:border-[#4A6D50] hover:bg-[#4A6D50]/5 transition-colors"
+                onClick={triggerFileInput}
+                className={`w-24 h-24 md:w-28 md:h-28 rounded-2xl border-2 overflow-hidden flex items-center justify-center transition-colors ${
+                  referenceImages[i] 
+                    ? 'border-transparent shadow-sm' 
+                    : 'border-dashed border-gray-200 text-gray-400 hover:text-[#4A6D50] hover:border-[#4A6D50] hover:bg-[#4A6D50]/5'
+                }`}
                 aria-label="Upload reference image"
               >
-                <Plus size={20} />
+                {referenceImages[i] ? (
+                  <img src={referenceImages[i]} alt="Reference" className="w-full h-full object-cover" />
+                ) : (
+                  <Plus size={20} />
+                )}
               </button>
             ))}
           </div>
+          {referenceImages.length > 0 && (
+            <button 
+              onClick={() => setReferenceImages([])} 
+              className="mt-4 text-xs font-semibold text-red-500 hover:text-red-600 transition-colors"
+            >
+              Clear Images
+            </button>
+          )}
         </div>
 
         {/* Pills */}
