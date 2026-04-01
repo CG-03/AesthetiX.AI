@@ -6,9 +6,14 @@
   --font-serif: "Playfair Display", serif;
 }
 
+@variant dark (&:where(.dark, .dark *));
+
 @layer base {
   body {
-    @apply bg-[#FFFBF5] text-[#2D2D2D] antialiased;
+    @apply bg-[#FBFBF9] text-[#1F1F1F] antialiased transition-colors duration-300;
+  }
+  .dark body {
+    @apply bg-[#121212] text-white;
   }
 }
 

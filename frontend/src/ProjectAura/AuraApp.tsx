@@ -12,9 +12,61 @@ import ProfileSection from './screens/ProfileSection';
 type Page = 'home' | 'my-designs' | 'saved-products' | 'settings' | 'profile';
 type Route = 'dashboard' | 'step1' | 'step2' | 'step3' | 'my-designs' | 'saved-products' | 'project-workspace' | 'settings' | 'profile';
 
+import { CheckCircle2, Info, X } from 'lucide-react';
+
+const Toast = ({ message, type, onClose }: { message: string, type: 'success' | 'info', onClose: () => void }) => (
+  <div className="fixed top-8 left-1/2 -translate-x-1/2 z-[1000] flex items-center gap-3 bg-white dark:bg-gray-900 border border-gray-100 dark:border-gray-800 rounded-2xl px-6 py-4 shadow-2xl animate-in fade-in slide-in-from-top-8">
+    {type === 'success' ? (
+      <div className="w-8 h-8 rounded-full bg-green-500/10 flex items-center justify-center text-green-500">
+        <CheckCircle2 size={18} />
+      </div>
+    ) : (
+      <div className="w-8 h-8 rounded-full bg-[#4A6D50]/10 flex items-center justify-center text-[#4A6D50]">
+        <Info size={18} />
+      </div>
+    )}
+    <p className="text-sm font-bold dark:text-white">{message}</p>
+    <button onClick={onClose} className="ml-4 text-gray-400 hover:text-gray-600 dark:hover:text-gray-300">
+      <X size={16} />
+    </button>
+  </div>
+);
+
 export default function AuraApp() {
   const [currentRoute, setCurrentRoute] = useState<Route>('dashboard');
   const [activePage, setActivePage] = useState<Page>('home');
+
+  // New Global States
+  const [theme, setTheme] = useState(() => localStorage.getItem('vastu_theme') || 'light');
+  const [fontSize, setFontSize] = useState(() => localStorage.getItem('vastu_fontSize') || 'medium');
+  const [userProfile, setUserProfile] = useState(() => {
+    const saved = localStorage.getItem('vastu_userProfile');
+    return saved ? JSON.parse(saved) : null;
+  });
+  const [toast, setToast] = useState<{ message: string, type: 'success' | 'info' } | null>(null);
+
+  // Apply Theme and Font Size
+  React.useEffect(() => {
+    // Theme
+    if (theme === 'dark') {
+      document.documentElement.classList.add('dark');
+      document.documentElement.style.colorScheme = 'dark';
+    } else {
+      document.documentElement.classList.remove('dark');
+      document.documentElement.style.colorScheme = 'light';
+    }
+    localStorage.setItem('vastu_theme', theme);
+
+    // Font Size
+    const sizes = { small: '14px', medium: '16px', large: '18px' };
+    document.documentElement.style.fontSize = sizes[fontSize as keyof typeof sizes] || '16px';
+    localStorage.setItem('vastu_fontSize', fontSize);
+  }, [theme, fontSize]);
+
+  const showToast = (message: string, type: 'success' | 'info' = 'success') => {
+    setToast({ message, type });
+    setTimeout(() => setToast(null), 4000);
+  };
 
   // Shared state for onboarding flow
   const [designData, setDesignData] = useState(() => {
@@ -131,13 +183,16 @@ export default function AuraApp() {
   };
 
   return (
-    <div className="min-h-screen bg-[#FBFBF9] font-sans">
+    <div className="min-h-screen bg-[#FBFBF9] dark:bg-[#121212] font-sans transition-colors duration-300 text-[#1F1F1F] dark:text-white">
       {currentRoute === 'dashboard' && (
         <Dashboard 
           onNavigate={handleNavigate} 
           activePage={activePage} 
           onNewProject={handleNewProject} 
           onOpenProject={handleOpenSavedDesign}
+          userProfile={userProfile}
+          setDesignData={setDesignData}
+          showToast={showToast}
         />
       )}
 
@@ -194,6 +249,13 @@ export default function AuraApp() {
         <SettingsSection 
           onNavigate={handleNavigate}
           activePage={activePage}
+          theme={theme}
+          setTheme={setTheme}
+          fontSize={fontSize}
+          setFontSize={setFontSize}
+          showToast={showToast}
+          designData={designData}
+          setDesignData={setDesignData}
         />
       )}
 
@@ -202,6 +264,17 @@ export default function AuraApp() {
           activePage="profile"
           onOpenSavedDesign={handleOpenSavedDesign}
           onNavigate={handleNavigate}
+          userProfile={userProfile}
+          setUserProfile={setUserProfile}
+          showToast={showToast}
+        />
+      )}
+
+      {toast && (
+        <Toast 
+          message={toast.message} 
+          type={toast.type} 
+          onClose={() => setToast(null)} 
         />
       )}
     </div>

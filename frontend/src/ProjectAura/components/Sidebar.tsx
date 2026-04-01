@@ -18,7 +18,7 @@ const navItems: { id: Page; icon: React.FC<any>; label: string }[] = [
 
 export default function Sidebar({ activePage, onNavigate }: SidebarProps) {
   return (
-    <aside className="w-56 min-h-screen bg-white border-r border-gray-100 flex flex-col py-8 px-4 fixed left-0 top-0 z-40">
+    <aside className="w-56 min-h-screen bg-white dark:bg-[#1A1A1A] border-r border-gray-100 dark:border-gray-800 flex flex-col py-8 px-4 fixed left-0 top-0 z-40 transition-colors duration-300">
       {/* Logo */}
       <div className="px-3 mb-10">
         <p className="text-[#4A6D50] font-bold text-xl tracking-tight">VastuVision AI PRO</p>
@@ -38,7 +38,7 @@ export default function Sidebar({ activePage, onNavigate }: SidebarProps) {
               className={`w-full flex items-center gap-3 px-3 py-2.5 rounded-xl text-sm font-medium transition-all text-left ${
                 isActive
                   ? 'bg-[#4A6D50]/10 text-[#4A6D50] font-semibold'
-                  : 'text-gray-500 hover:bg-gray-50 hover:text-gray-800'
+                  : 'text-gray-500 dark:text-gray-400 hover:bg-gray-50 dark:hover:bg-gray-800 hover:text-gray-800 dark:hover:text-white'
               }`}
             >
               <Icon size={18} className={isActive ? 'text-[#4A6D50]' : 'text-gray-400'} />
@@ -52,9 +52,9 @@ export default function Sidebar({ activePage, onNavigate }: SidebarProps) {
       </nav>
 
       {/* Pro Badge */}
-      <div className="mt-6 mx-1 bg-[#4A6D50]/10 border border-[#4A6D50]/20 rounded-2xl px-4 py-4">
-        <p className="text-[#4A6D50] font-bold text-xs">Pro Plan Active</p>
-        <p className="text-gray-500 text-[10px] mt-0.5">Unlimited AI renders included.</p>
+      <div className="mt-6 mx-1 bg-[#4A6D50]/10 border border-[#4A6D50]/20 dark:border-[#4A6D50]/40 rounded-2xl px-4 py-4">
+        <p className="text-[#4A6D50] font-bold text-xs uppercase tracking-tight">Pro Plan Active</p>
+        <p className="text-gray-500 dark:text-gray-400 text-[10px] mt-0.5">Unlimited AI renders included.</p>
       </div>
     </aside>
   );

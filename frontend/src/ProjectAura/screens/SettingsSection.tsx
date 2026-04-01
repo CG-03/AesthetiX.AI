@@ -11,43 +11,58 @@ type Page = 'home' | 'my-designs' | 'saved-products' | 'settings' | 'profile';
 interface SettingsSectionProps {
   onNavigate: (page: Page) => void;
   activePage: Page;
+  theme: string;
+  setTheme: (theme: string) => void;
+  fontSize: string;
+  setFontSize: (size: string) => void;
+  showToast: (message: string, type?: 'success' | 'info') => void;
+  designData: any;
+  setDesignData: (data: any) => void;
 }
 
-export default function SettingsSection({ onNavigate, activePage }: SettingsSectionProps) {
-  const [settings, setSettings] = useState({
-    theme: 'light',
-    fontSize: 'medium',
-    defaultRoom: 'Living Room',
-    defaultStyle: 'Modern Minimalist',
-    defaultBudget: 4500,
-    defaultLocation: 'Mumbai, India',
-    defaultDirection: 'North',
+export default function SettingsSection({ 
+  onNavigate, 
+  activePage, 
+  theme, 
+  setTheme, 
+  fontSize, 
+  setFontSize, 
+  showToast,
+  designData,
+  setDesignData
+}: SettingsSectionProps) {
+  const [localSettings, setLocalSettings] = useState({
+    defaultRoom: designData.roomType || 'Living Room',
+    defaultStyle: designData.style || 'Modern Minimalist',
+    defaultBudget: designData.budget || 4500,
+    defaultLocation: designData.location || 'Mumbai, India',
+    defaultDirection: designData.vastu || 'North',
     emailNotifications: true,
     designAlerts: true
   });
 
-  const [showSaveSuccess, setShowSaveSuccess] = useState(false);
   const [showPasswordModal, setShowPasswordModal] = useState(false);
   const [showDeleteModal, setShowDeleteModal] = useState(false);
 
-  useEffect(() => {
-    const saved = localStorage.getItem('vastu_settings');
-    if (saved) {
-      const parsed = JSON.parse(saved);
-      setSettings(prev => ({ ...prev, ...parsed }));
-      if (parsed.theme === 'dark') document.documentElement.classList.add('dark');
-    }
-  }, []);
-
   const handleSave = () => {
-    localStorage.setItem('vastu_settings', JSON.stringify(settings));
-    if (settings.theme === 'dark') {
-      document.documentElement.classList.add('dark');
-    } else {
-      document.documentElement.classList.remove('dark');
-    }
-    setShowSaveSuccess(true);
-    setTimeout(() => setShowSaveSuccess(false), 3000);
+    const finalSettings = {
+      ...localSettings,
+      theme,
+      fontSize
+    };
+    localStorage.setItem('vastu_settings', JSON.stringify(finalSettings));
+    
+    // Update global design data to reflect defaults immediately
+    setDesignData((prev: any) => ({
+      ...prev,
+      roomType: localSettings.defaultRoom,
+      style: localSettings.defaultStyle,
+      budget: localSettings.defaultBudget,
+      location: localSettings.defaultLocation,
+      vastu: localSettings.defaultDirection
+    }));
+
+    showToast('Preferences saved successfully!', 'success');
   };
 
   const SectionHeader = ({ title, icon: Icon }: { title: string, icon: any }) => (
@@ -69,11 +84,6 @@ export default function SettingsSection({ onNavigate, activePage }: SettingsSect
             <h1 className="text-3xl font-bold tracking-tight dark:text-white">Settings</h1>
             <p className="text-gray-500 dark:text-gray-400 text-sm mt-1">Configure your personal Vastu AI workspace preferences.</p>
           </div>
-          {showSaveSuccess && (
-            <div className="flex items-center gap-2 bg-green-50 text-green-600 px-4 py-2 rounded-xl text-sm font-semibold animate-in fade-in slide-in-from-top-4">
-              <Check size={16} /> Preferences saved successfully!
-            </div>
-          )}
         </header>
 
         <div className="grid grid-cols-1 md:grid-cols-2 gap-12">
@@ -88,13 +98,13 @@ export default function SettingsSection({ onNavigate, activePage }: SettingsSect
                 </div>
                 <div className="flex bg-gray-100 dark:bg-gray-800 p-1 rounded-xl">
                   <button 
-                    onClick={() => setSettings(s => ({ ...s, theme: 'light' }))}
-                    className={`p-2 rounded-lg transition-all ${settings.theme === 'light' ? 'bg-white shadow-sm text-[#4A6D50]' : 'text-gray-400'}`}>
+                    onClick={() => setTheme('light')}
+                    className={`p-2 rounded-lg transition-all ${theme === 'light' ? 'bg-white shadow-sm text-[#4A6D50]' : 'text-gray-400'}`}>
                     <Sun size={18} />
                   </button>
                   <button 
-                    onClick={() => setSettings(s => ({ ...s, theme: 'dark' }))}
-                    className={`p-2 rounded-lg transition-all ${settings.theme === 'dark' ? 'bg-[#4A6D50] text-white shadow-sm' : 'text-gray-400'}`}>
+                    onClick={() => setTheme('dark')}
+                    className={`p-2 rounded-lg transition-all ${theme === 'dark' ? 'bg-[#4A6D50] text-white shadow-sm' : 'text-gray-400'}`}>
                     <Moon size={18} />
                   </button>
                 </div>
@@ -105,9 +115,9 @@ export default function SettingsSection({ onNavigate, activePage }: SettingsSect
                   <p className="text-xs text-gray-400">Adjust the interface text scaling.</p>
                 </div>
                 <select 
-                  value={settings.fontSize}
-                  onChange={e => setSettings(s => ({ ...s, fontSize: e.target.value }))}
-                  className="bg-white dark:bg-gray-800 border-gray-200 dark:border-gray-700 text-sm rounded-xl px-3 py-2 focus:ring-[#4A6D50] focus:border-[#4A6D50] dark:text-white"
+                  value={fontSize}
+                  onChange={e => setFontSize(e.target.value)}
+                  className="bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 text-sm rounded-xl px-3 py-2 focus:ring-[#4A6D50] focus:border-[#4A6D50] dark:text-white"
                 >
                   <option value="small">Small</option>
                   <option value="medium">Medium</option>
@@ -125,9 +135,9 @@ export default function SettingsSection({ onNavigate, activePage }: SettingsSect
                 <div className="space-y-1.5">
                   <label className="text-[11px] font-bold uppercase tracking-widest text-gray-400">Default Room</label>
                   <select 
-                    value={settings.defaultRoom}
-                    onChange={e => setSettings(s => ({ ...s, defaultRoom: e.target.value }))}
-                    className="w-full bg-white dark:bg-gray-800 border-gray-200 dark:border-gray-700 text-sm rounded-xl px-3 py-2 dark:text-white"
+                    value={localSettings.defaultRoom}
+                    onChange={e => setLocalSettings(s => ({ ...s, defaultRoom: e.target.value }))}
+                    className="w-full bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 text-sm rounded-xl px-3 py-2 dark:text-white"
                   >
                     <option>Living Room</option>
                     <option>Bedroom</option>
@@ -139,9 +149,9 @@ export default function SettingsSection({ onNavigate, activePage }: SettingsSect
                 <div className="space-y-1.5">
                   <label className="text-[11px] font-bold uppercase tracking-widest text-gray-400">Design Style</label>
                   <select 
-                    value={settings.defaultStyle}
-                    onChange={e => setSettings(s => ({ ...s, defaultStyle: e.target.value }))}
-                    className="w-full bg-white dark:bg-gray-800 border-gray-200 dark:border-gray-700 text-sm rounded-xl px-3 py-2 dark:text-white"
+                    value={localSettings.defaultStyle}
+                    onChange={e => setLocalSettings(s => ({ ...s, defaultStyle: e.target.value }))}
+                    className="w-full bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 text-sm rounded-xl px-3 py-2 dark:text-white"
                   >
                     <option>Modern Minimalist</option>
                     <option>Traditional Indian</option>
@@ -156,17 +166,17 @@ export default function SettingsSection({ onNavigate, activePage }: SettingsSect
                   <label className="text-[11px] font-bold uppercase tracking-widest text-gray-400">Default Budget ($)</label>
                   <input 
                     type="number"
-                    value={settings.defaultBudget}
-                    onChange={e => setSettings(s => ({ ...s, defaultBudget: parseInt(e.target.value) }))}
-                    className="w-full bg-white dark:bg-gray-800 border-gray-200 dark:border-gray-700 text-sm rounded-xl px-3 py-2 dark:text-white"
+                    value={localSettings.defaultBudget}
+                    onChange={e => setLocalSettings(s => ({ ...s, defaultBudget: parseInt(e.target.value) || 0 }))}
+                    className="w-full bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 text-sm rounded-xl px-3 py-2 dark:text-white"
                   />
                 </div>
                 <div className="space-y-1.5">
                   <label className="text-[11px] font-bold uppercase tracking-widest text-gray-400">Default Direction</label>
                   <select 
-                    value={settings.defaultDirection}
-                    onChange={e => setSettings(s => ({ ...s, defaultDirection: e.target.value }))}
-                    className="w-full bg-white dark:bg-gray-800 border-gray-200 dark:border-gray-700 text-sm rounded-xl px-3 py-2 dark:text-white"
+                    value={localSettings.defaultDirection}
+                    onChange={e => setLocalSettings(s => ({ ...s, defaultDirection: e.target.value }))}
+                    className="w-full bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 text-sm rounded-xl px-3 py-2 dark:text-white"
                   >
                     <option>North</option>
                     <option>East</option>
@@ -224,8 +234,8 @@ export default function SettingsSection({ onNavigate, activePage }: SettingsSect
                 </div>
                 <input 
                   type="checkbox" 
-                  checked={settings.emailNotifications}
-                  onChange={e => setSettings(s => ({ ...s, emailNotifications: e.target.checked }))}
+                  checked={localSettings.emailNotifications}
+                  onChange={e => setLocalSettings(s => ({ ...s, emailNotifications: e.target.checked }))}
                   className="w-5 h-5 rounded text-[#4A6D50] focus:ring-[#4A6D50]"
                 />
               </div>
@@ -236,8 +246,8 @@ export default function SettingsSection({ onNavigate, activePage }: SettingsSect
                 </div>
                 <input 
                   type="checkbox" 
-                  checked={settings.designAlerts}
-                  onChange={e => setSettings(s => ({ ...s, designAlerts: e.target.checked }))}
+                  checked={localSettings.designAlerts}
+                  onChange={e => setLocalSettings(s => ({ ...s, designAlerts: e.target.checked }))}
                   className="w-5 h-5 rounded text-[#4A6D50] focus:ring-[#4A6D50]"
                 />
               </div>
