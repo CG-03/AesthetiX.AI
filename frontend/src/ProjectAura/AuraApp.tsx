@@ -12,7 +12,77 @@ import ProfileSection from './screens/ProfileSection';
 type Page = 'home' | 'my-designs' | 'saved-products' | 'settings' | 'profile';
 type Route = 'dashboard' | 'step1' | 'step2' | 'step3' | 'my-designs' | 'saved-products' | 'project-workspace' | 'settings' | 'profile';
 
-import { CheckCircle2, Info, X } from 'lucide-react';
+import { CheckCircle2, Info, X, ShoppingCart, Trash2, ExternalLink } from 'lucide-react';
+
+const CartSidebar = ({ isOpen, onClose, items, onRemove }: { isOpen: boolean, onClose: () => void, items: any[], onRemove: (id: number) => void }) => {
+  const total = items.reduce((sum, item) => sum + (item.price || 0), 0);
+
+  return (
+    <>
+      <div 
+        className={`fixed inset-0 bg-black/40 backdrop-blur-sm z-[1000] transition-opacity duration-500 ${isOpen ? 'opacity-100' : 'opacity-0 pointer-events-none'}`} 
+        onClick={onClose}
+      />
+      <div className={`fixed top-0 right-0 h-full w-full max-w-md bg-white dark:bg-gray-900 shadow-2xl z-[1001] transition-transform duration-500 transform ${isOpen ? 'translate-x-0' : 'translate-x-full'}`}>
+        <div className="flex flex-col h-full">
+          <div className="p-8 border-b border-gray-100 dark:border-gray-800 flex justify-between items-center">
+            <h2 className="text-2xl font-bold flex items-center gap-3">
+              <ShoppingCart className="text-[#4A6D50]" /> Your Cart
+            </h2>
+            <button onClick={onClose} className="p-2 hover:bg-gray-100 dark:hover:bg-gray-800 rounded-xl transition-colors">
+              <X size={20} />
+            </button>
+          </div>
+
+          <div className="flex-1 overflow-y-auto p-8 space-y-6">
+            {items.length === 0 ? (
+              <div className="h-full flex flex-col items-center justify-center text-center">
+                <div className="w-16 h-16 bg-gray-50 dark:bg-gray-800 rounded-full flex items-center justify-center text-gray-300 mb-4">
+                  <ShoppingCart size={24} />
+                </div>
+                <p className="font-medium text-gray-400 italic">Your cart is currently empty.</p>
+              </div>
+            ) : (
+              items.map((item, idx) => (
+                <div key={`${item.id}-${idx}`} className="flex gap-4 group">
+                  <div className="w-20 h-20 bg-gray-50 dark:bg-gray-800 rounded-xl overflow-hidden border border-gray-100 dark:border-gray-800">
+                    <img src={item.image} alt={item.name} className="w-full h-full object-cover" />
+                  </div>
+                  <div className="flex-1 min-w-0">
+                    <h4 className="font-bold text-sm truncate">{item.name}</h4>
+                    <p className="text-xs text-gray-400 mb-2 truncate">{item.brand || 'VastuVision Select'}</p>
+                    <div className="flex items-center justify-between">
+                      <span className="font-bold text-[#4A6D50] text-sm">${item.price?.toLocaleString()}</span>
+                      <button 
+                        onClick={() => onRemove(item.id)}
+                        className="text-red-400 hover:text-red-500 transition-colors p-1"
+                      >
+                        <Trash2 size={16} />
+                      </button>
+                    </div>
+                  </div>
+                </div>
+              ))
+            )}
+          </div>
+
+          <div className="p-8 bg-gray-50 dark:bg-gray-800/50 border-t border-gray-100 dark:border-gray-800">
+            <div className="flex justify-between items-center mb-6">
+              <span className="text-gray-500 font-medium">Total Investment</span>
+              <span className="text-2xl font-bold tracking-tight">${total.toLocaleString()}</span>
+            </div>
+            <button 
+              disabled={items.length === 0}
+              className="w-full bg-[#4A6D50] text-white py-4 rounded-2xl font-bold text-sm uppercase tracking-widest shadow-xl shadow-[#4A6D50]/20 hover:bg-[#3A5640] transition-all active:scale-95 disabled:opacity-50 disabled:active:scale-100"
+            >
+              Checkout Project Items
+            </button>
+          </div>
+        </div>
+      </div>
+    </>
+  );
+};
 
 const Toast = ({ message, type, onClose }: { message: string, type: 'success' | 'info', onClose: () => void }) => (
   <div className="fixed top-8 left-1/2 -translate-x-1/2 z-[1000] flex items-center gap-3 bg-white dark:bg-gray-900 border border-gray-100 dark:border-gray-800 rounded-2xl px-6 py-4 shadow-2xl animate-in fade-in slide-in-from-top-8">
@@ -44,6 +114,19 @@ export default function AuraApp() {
     return saved ? JSON.parse(saved) : null;
   });
   const [toast, setToast] = useState<{ message: string, type: 'success' | 'info' } | null>(null);
+  
+  // Cart State
+  const [cartItems, setCartItems] = useState<any[]>([]);
+  const [isCartOpen, setIsCartOpen] = useState(false);
+
+  const addToCart = (product: any) => {
+    setCartItems(prev => [...prev, product]);
+    showToast(`${product.name} added to cart!`, 'success');
+  };
+
+  const removeFromCart = (id: number) => {
+    setCartItems(prev => prev.filter(item => item.id !== id));
+  };
 
   // Apply Theme and Font Size
   React.useEffect(() => {
@@ -62,6 +145,19 @@ export default function AuraApp() {
     document.documentElement.style.fontSize = sizes[fontSize as keyof typeof sizes] || '16px';
     localStorage.setItem('vastu_fontSize', fontSize);
   }, [theme, fontSize]);
+
+  // Cleanup/Validate localStorage on load
+  React.useEffect(() => {
+    try {
+      const history = localStorage.getItem('vastu_saved_designs');
+      if (history) {
+        JSON.parse(history);
+      }
+    } catch (e) {
+      console.error('Corrupted design history detected. Clearing storage.', e);
+      localStorage.removeItem('vastu_saved_designs');
+    }
+  }, []);
 
   const showToast = (message: string, type: 'success' | 'info' = 'success') => {
     setToast({ message, type });
@@ -144,17 +240,24 @@ export default function AuraApp() {
       
       setApiResult(result);
 
-      // Save to History
-      const history = localStorage.getItem('vastu_saved_designs');
-      const parsedHistory = history ? JSON.parse(history) : [];
-      const newDesign = {
-        id: Date.now().toString(),
-        date: new Date().toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' }),
-        roomType: designData.roomType,
-        style: designData.style,
-        ...result
-      };
-      localStorage.setItem('vastu_saved_designs', JSON.stringify([newDesign, ...parsedHistory]));
+      // Save to History (Text metadata only to avoid QuotaExceededError)
+      try {
+        const history = localStorage.getItem('vastu_saved_designs');
+        const parsedHistory = history ? JSON.parse(history) : [];
+        const newDesign = {
+          id: Date.now().toString(),
+          date: new Date().toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' }),
+          roomType: designData.roomType,
+          style: designData.style,
+          location: designData.location,
+          budget: designData.budget,
+          text: result.text // Save only text analysis, NO base64 images
+        };
+        localStorage.setItem('vastu_saved_designs', JSON.stringify([newDesign, ...parsedHistory]));
+      } catch (e) {
+        console.warn('Storage full or error — clearing old designs');
+        localStorage.removeItem('vastu_saved_designs');
+      }
 
       setCurrentRoute('project-workspace');
     } catch (err) {
@@ -168,16 +271,18 @@ export default function AuraApp() {
   const handleOpenSavedDesign = (design: any) => {
     setApiResult({
       text: design.text,
-      image: design.image,
-      redesignedImage: design.redesignedImage,
-      nighttimeImage: design.nighttimeImage,
-      products: design.products,
-      depthMapImage: design.depthMapImage
+      image: "", // Images no longer stored in history
+      redesignedImage: "", 
+      nighttimeImage: null,
+      products: [],
+      depthMapImage: null
     });
     setDesignData(prev => ({
       ...prev,
       roomType: design.roomType,
-      style: design.style
+      style: design.style,
+      location: design.location || prev.location,
+      budget: design.budget || prev.budget
     }));
     setCurrentRoute('project-workspace');
   };
@@ -242,6 +347,9 @@ export default function AuraApp() {
           onBack={() => setCurrentRoute('dashboard')} 
           apiResult={apiResult}
           budget={designData.budget}
+          cartItems={cartItems}
+          onAddToCart={addToCart}
+          onOpenCart={() => setIsCartOpen(true)}
         />
       )}
 
@@ -269,6 +377,13 @@ export default function AuraApp() {
           showToast={showToast}
         />
       )}
+
+      <CartSidebar 
+        isOpen={isCartOpen} 
+        onClose={() => setIsCartOpen(false)} 
+        items={cartItems}
+        onRemove={removeFromCart}
+      />
 
       {toast && (
         <Toast 

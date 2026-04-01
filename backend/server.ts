@@ -18,6 +18,17 @@ app.get("/", (_req, res) => {
   res.send({ status: "online", message: "Vastu AI Backend is running" });
 });
 
+const VISION_MODELS = [
+  "nvidia/nemotron-nano-12b-v2-vl:free",
+  "google/gemini-flash-1.5-8b",
+  "meta-llama/llama-3.2-11b-vision-instruct:free"
+];
+
+const IMAGE_MODELS = [
+  "google/gemini-2.5-flash-image",
+  "google/gemini-flash-1.5"
+];
+
 // ── helpers ────────────────────────────────────────────────────────────────
 
 async function openrouterChat(
@@ -79,28 +90,37 @@ CRITICAL ARCHITECTURAL LOCK: Use the provided image as the ABSOLUTE structural t
 
     console.log("\nStarting AI tasks...");
 
-    // ── 1. Text Analysis ─ NVIDIA Nemotron (Vision) ──────────────────────
-    console.log("[OpenRouter] Sending vision prompt to NVIDIA Nemotron...");
+    // ── 1. Text Analysis ─ Robust Fallback Management ────────────────────
+    console.log("[OpenRouter] Starting Text Analysis with fallbacks...");
 
     let analysisResultText = "";
-    try {
-      const chatData = await openrouterChat(
-        "nvidia/nemotron-nano-12b-v2-vl:free",
-        [
-          {
-            role: "user",
-            content: [
-              { type: "text", text: analysisPrompt },
-              { type: "image_url", image_url: { url: imageUrl } },
-            ],
-          },
-        ]
-      );
-      analysisResultText = chatData?.choices?.[0]?.message?.content ?? "";
-      console.log("[OpenRouter] Text analysis generated successfully.");
-    } catch (err: any) {
-      console.error("Text analysis failed:", err.message);
-      throw new Error(`Text Analysis Error: ${err.message}`);
+    for (const model of VISION_MODELS) {
+      try {
+        console.log(`[OpenRouter] Attempting Text Analysis via ${model}...`);
+        const chatData = await openrouterChat(
+          model,
+          [
+            {
+              role: "user",
+              content: [
+                { type: "text", text: analysisPrompt },
+                { type: "image_url", image_url: { url: imageUrl } },
+              ],
+            },
+          ]
+        );
+        analysisResultText = chatData?.choices?.[0]?.message?.content ?? "";
+        if (analysisResultText) {
+          console.log(`[OpenRouter] Success: Text generated via ${model}.`);
+          break;
+        }
+      } catch (err: any) {
+        console.warn(`[OpenRouter] Warning: ${model} failed: ${err.message}`);
+        if (model === VISION_MODELS[VISION_MODELS.length - 1]) {
+           throw new Error(`Critical Text Analysis Failure: All models exhausted. Last error: ${err.message}`);
+        }
+        console.log("[OpenRouter] Retrying with fallback model...");
+      }
     }
 
     // ── 2. Image Generation ─ Gemini 2.5 Flash Image ────────────────────
@@ -111,61 +131,69 @@ CRITICAL ARCHITECTURAL LOCK: Use the provided image as the ABSOLUTE structural t
     const generateImage = async (promptText: string, customImageUrl: string) => {
       let imageBase64 = "";
       
-      const imageData = await openrouterChat(
-        "google/gemini-2.5-flash-image",
-        [
-          {
-            role: "system",
-            content: "You are a professional interior design image generation engine. Generate an image based on the provided photo and visual description. Output ONLY the generated image. Do NOT provide text reasoning, JSON, or parameters."
-          },
-          {
-            role: "user",
-            content: [
-              { type: "text", text: `GENERATE REDESIGN: ${promptText}` },
-              { type: "image_url", image_url: { url: customImageUrl } },
+      for (const model of IMAGE_MODELS) {
+        try {
+          console.log(`[OpenRouter] Attempting Image Generation via ${model}...`);
+          const imageData = await openrouterChat(
+            model,
+            [
+              {
+                role: "system",
+                content: "You are a professional interior design image generation engine. Generate an image based on the provided photo and visual description. Output ONLY the generated image. Do NOT provide text reasoning, JSON, or parameters."
+              },
+              {
+                role: "user",
+                content: [
+                  { type: "text", text: `GENERATE REDESIGN: ${promptText}` },
+                  { type: "image_url", image_url: { url: customImageUrl } },
+                ],
+              },
             ],
-          },
-        ],
-        { modalities: ["image", "text"] }
-      );
-      const message = imageData?.choices?.[0]?.message;
-      const content = message?.content;
-      const images = message?.images;
+            { modalities: ["image", "text"] }
+          );
 
-      if (Array.isArray(images) && images.length > 0) {
-        for (const img of images) {
-          if (img?.type === "image_url" && img?.image_url?.url) {
-            const url = img.image_url.url;
-            imageBase64 = url.startsWith("data:") ? url : `data:image/jpeg;base64,${url}`;
-            break;
+          const message = imageData?.choices?.[0]?.message;
+          const content = message?.content;
+          const images = message?.images;
+
+          if (Array.isArray(images) && images.length > 0) {
+            for (const img of images) {
+              if (img?.type === "image_url" && img?.image_url?.url) {
+                const url = img.image_url.url;
+                imageBase64 = url.startsWith("data:") ? url : `data:image/jpeg;base64,${url}`;
+                break;
+              }
+            }
           }
-        }
-      }
 
-      if (!imageBase64 && Array.isArray(content)) {
-        for (const part of content) {
-          if (part?.type === "image_url" && part?.image_url?.url) {
-            const url = part.image_url.url;
-            imageBase64 = url.startsWith("data:") ? url : `data:image/jpeg;base64,${url}`;
-            break;
+          if (!imageBase64 && Array.isArray(content)) {
+            for (const part of content) {
+              if (part?.type === "image_url" && part?.image_url?.url) {
+                const url = part.image_url.url;
+                imageBase64 = url.startsWith("data:") ? url : `data:image/jpeg;base64,${url}`;
+                break;
+              }
+            }
+          } else if (!imageBase64 && typeof content === "string" && content.trim()) {
+            const trimmed = content.trim();
+            const dataUrlMatch = trimmed.match(/data:image\/[a-zA-Z]*;base64,[^\s"']*/);
+            if (dataUrlMatch) {
+              imageBase64 = dataUrlMatch[0];
+            } else if (!trimmed.includes(" ") && trimmed.length > 1000) {
+              imageBase64 = `data:image/jpeg;base64,${trimmed}`;
+            }
           }
-        }
-      } 
-      else if (!imageBase64 && typeof content === "string" && content.trim()) {
-        const trimmed = content.trim();
-        const dataUrlMatch = trimmed.match(/data:image\/[a-zA-Z]*;base64,[^\s"']*/);
-        if (dataUrlMatch) {
-          imageBase64 = dataUrlMatch[0];
-        } else if (!trimmed.includes(" ") && trimmed.length > 1000) {
-          imageBase64 = `data:image/jpeg;base64,${trimmed}`;
+
+          if (imageBase64) {
+            console.log(`[OpenRouter] Success: Image extracted via ${model}.`);
+            return imageBase64;
+          }
+        } catch (err: any) {
+          console.warn(`[OpenRouter] Warning: ${model} failed: ${err.message}`);
+          if (model === IMAGE_MODELS[IMAGE_MODELS.length - 1]) return "";
         }
       }
-
-      if (!imageBase64) {
-        console.error("[OpenRouter] Failed to extract image. Response message:", JSON.stringify(message, null, 2));
-      }
-
-      return imageBase64;
+      return "";
     };
 
     // Sequential generation to ensure consistency
@@ -227,54 +255,72 @@ app.post("/api/remediate", async (req, res) => {
     console.log(`[OpenRouter] Editing via Gemini... Prompt: ${promptOverrides}`);
 
     let imageBase64 = "";
-    const imageData = await openrouterChat(
-      "google/gemini-2.5-flash-image", 
-      [
-        {
-          role: "system",
-          content: "You are a professional interior design image generation engine. Generate the redesign image based on the provided photo and modification description. Output ONLY the generated image. Do NOT provide text reasoning, JSON, or parameters."
-        },
-        { 
-          role: "user", 
-          content: [
-            { type: "text", text: `REMEDIATE RENDER: ${promptOverrides || "Improve the design subtly"}` }, 
-            { type: "image_url", image_url: { url: imageUrl } }
-          ]
-        }
-      ],
-      { modalities: ["image", "text"] }
-    );
-    
-    const message = imageData?.choices?.[0]?.message;
-    const content = message?.content;
-    const images = message?.images;
+    for (const model of IMAGE_MODELS) {
+      try {
+        console.log(`[OpenRouter] Remediation attempt via ${model}...`);
+        const imageData = await openrouterChat(
+          model, 
+          [
+            {
+              role: "system",
+              content: "You are a professional interior design image generation engine. Generate the redesign image based on the provided photo and modification description. Output ONLY the generated image. Do NOT provide text reasoning, JSON, or parameters."
+            },
+            { 
+              role: "user", 
+              content: [
+                { type: "text", text: `REMEDIATE RENDER: Modify the provided interior design by applying these requested changes: "${promptOverrides}". 
+                CRITICAL: 
+                1. Use the provided image as the EXACT structural template. 
+                2. High-Fidelity Preservation: Maintain the current furniture layout, flooring, and architecture unless explicitly asked to change them.
+                3. Incremental Edit: Apply ONLY the requested changes (e.g., if asked for wall color, only change the walls). 
+                4. Realistic Output: Professional 8k interior visualization.` }, 
+                { type: "image_url", image_url: { url: imageUrl } }
+              ]
+            }
+          ],
+          { modalities: ["image", "text"] }
+        );
+        
+        const message = imageData?.choices?.[0]?.message;
+        const content = message?.content;
+        const images = message?.images;
 
-    if (Array.isArray(images) && images.length > 0) {
-      for (const img of images) {
-        if (img?.type === "image_url" && img?.image_url?.url) {
-          const url = img.image_url.url;
-          imageBase64 = url.startsWith("data:") ? url : `data:image/jpeg;base64,${url}`;
+        if (Array.isArray(images) && images.length > 0) {
+          for (const img of images) {
+            if (img?.type === "image_url" && img?.image_url?.url) {
+              const url = img.image_url.url;
+              imageBase64 = url.startsWith("data:") ? url : `data:image/jpeg;base64,${url}`;
+              break;
+            }
+          }
+        }
+
+        if (!imageBase64 && Array.isArray(content)) {
+          for (const part of content) {
+            if (part?.type === "image_url" && part?.image_url?.url) {
+              const url = part.image_url.url;
+              imageBase64 = url.startsWith("data:") ? url : `data:image/jpeg;base64,${url}`;
+              break;
+            }
+          }
+        } else if (!imageBase64 && typeof content === "string" && content.trim()) {
+            const trimmed = content.trim();
+            const dataUrlMatch = trimmed.match(/data:image\/[a-zA-Z]*;base64,[^\s"']*/);
+            if (dataUrlMatch) {
+              imageBase64 = dataUrlMatch[0];
+            } else if (!trimmed.includes(" ") && trimmed.length > 1000) {
+              imageBase64 = `data:image/jpeg;base64,${trimmed}`;
+            }
+        }
+
+        if (imageBase64) {
+          console.log(`[OpenRouter] Remediation Success via ${model}.`);
           break;
         }
+      } catch (err: any) {
+        console.warn(`[OpenRouter] Warning: Remediation ${model} failed: ${err.message}`);
+        if (model === IMAGE_MODELS[IMAGE_MODELS.length - 1]) throw err;
       }
-    }
-
-    if (!imageBase64 && Array.isArray(content)) {
-      for (const part of content) {
-         if (part?.type === "image_url" && part?.image_url?.url) {
-           const url = part.image_url.url;
-           imageBase64 = url.startsWith("data:") ? url : `data:image/jpeg;base64,${url}`;
-           break;
-         }
-      }
-    } else if (!imageBase64 && typeof content === "string" && content.trim()) {
-        const trimmed = content.trim();
-        const dataUrlMatch = trimmed.match(/data:image\/[a-zA-Z]*;base64,[^\s"']*/);
-        if (dataUrlMatch) {
-          imageBase64 = dataUrlMatch[0];
-        } else if (!trimmed.includes(" ") && trimmed.length > 1000) {
-          imageBase64 = `data:image/jpeg;base64,${trimmed}`;
-        }
     }
 
     if (!imageBase64) throw new Error("Failed to extract remediated base64 payload");

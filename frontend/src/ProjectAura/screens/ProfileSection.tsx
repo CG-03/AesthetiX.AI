@@ -286,8 +286,8 @@ export default function ProfileSection({
                   onClick={() => onOpenSavedDesign(design)}
                   className="group bg-white dark:bg-gray-900 rounded-3xl overflow-hidden border border-gray-100 dark:border-gray-800 shadow-sm hover:shadow-xl transition-all cursor-pointer relative"
                 >
-                  <div className="aspect-[4/3] relative overflow-hidden">
-                    <img src={design.redesignedImage} alt={design.roomType} className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-500" />
+                  <div className="aspect-[4/3] relative overflow-hidden bg-gray-50 dark:bg-gray-800 flex items-center justify-center border-b border-gray-100 dark:border-gray-800">
+                    <Box size={48} className="text-gray-200 dark:text-gray-700" />
                     <div className="absolute top-4 right-4 z-10 flex gap-2 opacity-0 group-hover:opacity-100 transition-opacity">
                        <button 
                         onClick={(e) => handleDelete(design.id, e)}
@@ -295,6 +295,9 @@ export default function ProfileSection({
                        >
                          <Trash2 size={16} />
                        </button>
+                    </div>
+                    <div className="absolute bottom-4 left-4">
+                      <span className="bg-[#4A6D50] text-white text-[9px] font-bold px-2 py-1 rounded uppercase tracking-widest">Metadata Only</span>
                     </div>
                   </div>
                   <div className="p-6">

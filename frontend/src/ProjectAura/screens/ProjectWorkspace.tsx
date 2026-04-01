@@ -2,8 +2,9 @@ import React, { useState, useEffect } from 'react';
 import { 
   PenTool, LayoutTemplate, Tag, ArrowLeft, Download, Share2, X, 
   Maximize2, ShoppingCart, Loader2, Sofa, Lamp, Layers, 
-  Paintbrush, Wrench, MoreHorizontal, BarChart3, ChevronDown, ChevronUp 
+  Paintbrush, Wrench, MoreHorizontal, BarChart3, ChevronDown, ChevronUp, KeyRound, HardHat, ExternalLink 
 } from 'lucide-react';
+import html2canvas from 'html2canvas';
 import ProductCard from '../components/ProductCard';
 
 interface ProjectWorkspaceProps {
@@ -17,6 +18,9 @@ interface ProjectWorkspaceProps {
     products?: any[];
     depthMapImage: string | null;
   } | null;
+  cartItems: any[];
+  onAddToCart: (product: any) => void;
+  onOpenCart: () => void;
 }
 
 const products = [
@@ -26,12 +30,12 @@ const products = [
   { id: 4, name: 'Earthen Triptych Art', brand: 'Vastu AI Fine Arts', price: 320, image: 'https://images.unsplash.com/photo-1579783902614-a3fb3927b6a5?w=400&h=300&fit=crop' },
 ];
 
-export default function ProjectWorkspace({ onBack, apiResult, budget = 4500 }: ProjectWorkspaceProps) {
+export default function ProjectWorkspace({ onBack, apiResult, budget = 4500, cartItems, onAddToCart, onOpenCart }: ProjectWorkspaceProps) {
   const [renderMode, setRenderMode] = useState<'original' | 'daylight' | 'nighttime'>('daylight');
   const [costMode, setCostMode] = useState<'retail' | 'custom'>('retail');
   const [selectedProduct, setSelectedProduct] = useState<any>(null);
   const [isCollageOpen, setIsCollageOpen] = useState(false);
-  const [cartCount, setCartCount] = useState(0);
+  const collageRef = React.useRef<HTMLDivElement>(null);
   
   const [remediatePrompt, setRemediatePrompt] = useState("");
   const [isRemediating, setIsRemediating] = useState(false);
@@ -61,14 +65,34 @@ export default function ProjectWorkspace({ onBack, apiResult, budget = 4500 }: P
     window.print();
   };
 
+  const handleDownloadCollage = async () => {
+    if (!collageRef.current) return;
+    try {
+      const canvas = await html2canvas(collageRef.current, {
+        useCORS: true,
+        allowTaint: true,
+        backgroundColor: '#FBFBF9'
+      });
+      const link = document.createElement('a');
+      link.download = `VastuVision-BeforeAfter-${Date.now()}.png`;
+      link.href = canvas.toDataURL('image/png');
+      link.click();
+    } catch (err) {
+      console.error('Download failed', err);
+    }
+  };
+
   const executeRemediate = async () => {
-    if (!remediatePrompt.trim() || !apiResult?.image) return;
+    if (!remediatePrompt.trim() || !activeImage) return;
     setIsRemediating(true);
     try {
       const res = await fetch("/api/remediate", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ image: apiResult.image, promptOverrides: remediatePrompt })
+        body: JSON.stringify({ 
+          image: activeImage, // Fix: Send the current redesigned image instead of original
+          promptOverrides: remediatePrompt 
+        })
       });
       const data = await res.json();
       if (data.redesignedImage) {
@@ -119,11 +143,11 @@ export default function ProjectWorkspace({ onBack, apiResult, budget = 4500 }: P
             <Tag size={16} /> Before & After
           </button>
           <div className="relative print:hidden">
-            <button className="flex items-center justify-center w-10 h-10 rounded-xl border border-gray-200 text-gray-500 hover:bg-gray-50 transition-colors">
+            <button onClick={onOpenCart} className="flex items-center justify-center w-10 h-10 rounded-xl border border-gray-200 text-gray-500 hover:bg-gray-50 transition-colors">
               <ShoppingCart size={18} />
             </button>
-            {cartCount > 0 && (
-              <span className="absolute -top-1 -right-1 bg-red-500 text-white text-[10px] font-bold w-4 h-4 flex items-center justify-center rounded-full">{cartCount}</span>
+            {cartItems.length > 0 && (
+              <span className="absolute -top-1 -right-1 bg-[#4A6D50] text-white text-[10px] font-bold w-4 h-4 flex items-center justify-center rounded-full shadow-sm">{cartItems.length}</span>
             )}
           </div>
           <button onClick={handleShare} className="flex items-center gap-2 px-4 py-2 rounded-xl border border-gray-200 text-sm font-semibold text-gray-500 hover:bg-gray-50 transition-colors print:hidden">
@@ -252,14 +276,18 @@ export default function ProjectWorkspace({ onBack, apiResult, budget = 4500 }: P
               <div className="bg-white/20 p-1 rounded-lg flex text-[10px] font-bold uppercase shrink-0 print:hidden shadow-inner">
                 <button 
                   onClick={() => setCostMode('retail')}
-                  className={`px-3 py-1.5 rounded transition-all duration-300 ${costMode === 'retail' ? 'bg-white text-[#4A6D50] shadow-sm' : 'text-white hover:bg-white/10'}`}>Turnkey</button>
+                  className={`flex items-center gap-2 px-3 py-1.5 rounded transition-all duration-300 ${costMode === 'retail' ? 'bg-white text-[#4A6D50] shadow-sm' : 'text-white hover:bg-white/10'}`}>
+                    <KeyRound size={12} /> Turnkey
+                </button>
                 <button 
                   onClick={() => setCostMode('custom')}
-                  className={`px-3 py-1.5 rounded transition-all duration-300 ${costMode === 'custom' ? 'bg-white text-[#4A6D50] shadow-sm' : 'text-white hover:bg-white/10'}`}>Material+Labor</button>
+                  className={`flex items-center gap-2 px-3 py-1.5 rounded transition-all duration-300 ${costMode === 'custom' ? 'bg-white text-[#4A6D50] shadow-sm' : 'text-white hover:bg-white/10'}`}>
+                    <HardHat size={12} /> Material+Labor
+                </button>
               </div>
             </div>
 
-            <div className={`space-y-3 overflow-hidden transition-all duration-500 ease-in-out relative z-10 ${isBreakdownOpen ? 'max-h-[500px] mb-6 opacity-100' : 'max-h-0 opacity-0'}`}>
+            <div className={`space-y-3 overflow-y-auto max-h-[160px] pr-2 transition-all duration-500 ease-in-out relative z-10 custom-scrollbar ${isBreakdownOpen ? 'opacity-100 mb-6' : 'max-h-0 opacity-0 pointer-events-none'}`}>
               <div className="pt-2" />
               {costMode === 'retail' ? (
                 <>
@@ -352,7 +380,14 @@ export default function ProjectWorkspace({ onBack, apiResult, budget = 4500 }: P
 
             <div className="grid grid-cols-2 gap-4">
               {displayProducts.map((p: any) => (
-                <ProductCard key={p.id || Math.random()} {...p} onClick3D={() => setSelectedProduct(p)} />
+                <ProductCard 
+                  key={p.id || Math.random()} 
+                  {...p} 
+                  amazonLink={`https://www.amazon.in/s?k=${encodeURIComponent(p.name)}`}
+                  indiaMartLink={`https://www.indiamart.com/search.mp?ss=${encodeURIComponent(p.name)}`}
+                  onClick3D={() => setSelectedProduct(p)} 
+                  onAddToCart={onAddToCart}
+                />
               ))}
             </div>
           </div>
@@ -389,7 +424,7 @@ export default function ProjectWorkspace({ onBack, apiResult, budget = 4500 }: P
                 </p>
                 <div className="flex gap-3 mt-auto">
                   <button 
-                    onClick={() => { setCartCount(c => c + 1); setSelectedProduct(null); }}
+                    onClick={() => { onAddToCart(selectedProduct); setSelectedProduct(null); }}
                     className="flex-1 bg-[#4A6D50] text-white font-bold py-3.5 rounded-xl shadow-md hover:bg-[#3A5640] transition-colors text-xs uppercase tracking-wider"
                   >
                     Add to Cart
@@ -405,32 +440,36 @@ export default function ProjectWorkspace({ onBack, apiResult, budget = 4500 }: P
       {/* Before & After Collage Modal */}
       {isCollageOpen && (
         <div className="fixed inset-0 z-[100] flex items-center justify-center p-4 bg-black/80 backdrop-blur-sm" onClick={() => setIsCollageOpen(false)}>
-          <div className="bg-white rounded-[2rem] p-6 max-w-4xl w-full relative" onClick={e => e.stopPropagation()}>
+          <div className="max-w-4xl w-full relative" onClick={e => e.stopPropagation()}>
             <button 
               onClick={() => setIsCollageOpen(false)} 
               className="absolute -top-12 right-0 md:-right-12 z-10 w-10 h-10 flex items-center justify-center rounded-full text-white hover:bg-white/20 transition-colors"
             >
               <X size={24} />
             </button>
-            <div className="text-center mb-6 mt-2">
-              <h2 className="text-2xl font-bold tracking-tight">VastuVision Transformation</h2>
-              <p className="text-gray-500 text-sm">Master Bedroom Redo</p>
-            </div>
-            <div className="flex flex-col md:flex-row gap-4 mb-8">
-              <div className="flex-1 aspect-video rounded-xl overflow-hidden relative border border-gray-200 shadow-sm">
-                <img src={apiResult?.image || "https://images.unsplash.com/photo-1600210492486-724fe5c67fb0?w=1200&h=800&fit=crop"} alt="Before" className="w-full h-full object-cover" />
-                <div className="absolute top-4 left-4 bg-black/60 text-white px-4 py-1.5 rounded-full text-xs font-bold uppercase tracking-widest backdrop-blur-sm">Before</div>
+            
+            <div ref={collageRef} className="bg-white p-6 rounded-[2rem] shadow-2xl">
+              <div className="text-center mb-6">
+                <h2 className="text-2xl font-bold tracking-tight">VastuVision Transformation</h2>
+                <p className="text-gray-500 text-sm">Master Bedroom Redo</p>
               </div>
-              <div className="flex-1 aspect-video rounded-xl overflow-hidden relative border border-[#4A6D50] shadow-[0_4px_30px_rgba(74,109,80,0.15)]">
-                <img src={activeImage || "https://images.unsplash.com/photo-1600210492486-724fe5c67fb0?w=1200&h=800&fit=crop"} alt="After" className="w-full h-full object-cover" />
-                <div className="absolute top-4 left-4 bg-[#4A6D50] text-white px-4 py-1.5 rounded-full text-xs font-bold uppercase tracking-widest shadow-sm">After</div>
+              <div className="flex flex-col md:flex-row gap-4 mb-2">
+                <div className="flex-1 aspect-video rounded-xl overflow-hidden relative border border-gray-100">
+                  <img src={apiResult?.image || ""} alt="Before" className="w-full h-full object-cover" crossOrigin="anonymous" />
+                  <div className="absolute top-4 left-4 bg-black/60 text-white px-4 py-1.5 rounded-full text-xs font-bold uppercase tracking-widest backdrop-blur-sm">Before</div>
+                </div>
+                <div className="flex-1 aspect-video rounded-xl overflow-hidden relative border border-[#4A6D50]/30">
+                  <img src={activeImage || ""} alt="After" className="w-full h-full object-cover" crossOrigin="anonymous" />
+                  <div className="absolute top-4 left-4 bg-[#4A6D50] text-white px-4 py-1.5 rounded-full text-xs font-bold uppercase tracking-widest shadow-sm">After</div>
+                </div>
               </div>
             </div>
-            <div className="flex flex-col sm:flex-row justify-center gap-4">
-              <button className="flex justify-center items-center gap-2 px-8 py-3.5 rounded-xl bg-[#4A6D50] text-white text-sm font-bold shadow-md hover:bg-[#3A5640] transition-colors" onClick={handleShare}>
+
+            <div className="flex flex-col sm:flex-row justify-center gap-4 mt-8">
+              <button className="flex justify-center items-center gap-2 px-8 py-3.5 rounded-xl bg-[#4A6D50] text-white text-sm font-bold shadow-md hover:bg-[#3A5640] transition-all active:scale-95" onClick={handleShare}>
                 <Share2 size={16} /> Share Collage
               </button>
-              <button className="flex justify-center items-center gap-2 px-8 py-3.5 rounded-xl border-2 border-gray-200 text-gray-700 text-sm font-bold hover:bg-gray-50 transition-colors">
+              <button className="flex justify-center items-center gap-2 px-8 py-3.5 rounded-xl bg-white text-gray-700 border-2 border-white/20 text-sm font-bold hover:bg-white/10 hover:text-white transition-all active:scale-95" onClick={handleDownloadCollage}>
                 <Download size={16} /> Download High-Res
               </button>
             </div>
