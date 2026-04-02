@@ -182,6 +182,9 @@ export default function AuraApp() {
   });
 
   const [isGenerating, setIsGenerating] = useState(false);
+  const [isDetectingObjects, setIsDetectingObjects] = useState(false);
+  const [detectedObjects, setDetectedObjects] = useState<any[]>([]);
+
   const [apiResult, setApiResult] = useState<{
     text: string;
     image: string;
@@ -244,6 +247,9 @@ export default function AuraApp() {
       
       setApiResult(result);
 
+      // --- Object Detection (Phase 1) ---
+      detectObjects(result.redesignedImage, result.text);
+
       // Save to History (Text metadata only to avoid QuotaExceededError)
       try {
         const history = localStorage.getItem('vastu_saved_designs');
@@ -269,6 +275,26 @@ export default function AuraApp() {
       alert('Failed to generate design. Check console for details.');
     } finally {
       setIsGenerating(false);
+    }
+  };
+
+  const detectObjects = async (redesignedImage: string, analysisText: string) => {
+    setIsDetectingObjects(true);
+    console.log("[SAM] Starting object detection...");
+    try {
+      const response = await fetch('/api/detect-objects', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ redesignedImage, analysisText })
+      });
+      if (!response.ok) throw new Error('Detection failed');
+      const data = await response.json();
+      setDetectedObjects(data);
+      console.log("[SAM] Detected objects:", data);
+    } catch (err) {
+      console.error("[SAM] Error detecting objects:", err);
+    } finally {
+      setIsDetectingObjects(false);
     }
   };
 
@@ -396,6 +422,13 @@ export default function AuraApp() {
           type={toast.type} 
           onClose={() => setToast(null)} 
         />
+      )}
+
+      {isDetectingObjects && (
+        <div className="fixed bottom-8 left-8 z-[1000] flex items-center gap-3 bg-white dark:bg-gray-900 border border-gray-100 dark:border-gray-800 rounded-2xl px-6 py-4 shadow-2xl animate-in fade-in slide-in-from-bottom-8">
+          <div className="w-5 h-5 border-2 border-[#4A6D50] border-t-transparent rounded-full animate-spin" />
+          <p className="text-sm font-bold dark:text-white">Detecting interior objects...</p>
+        </div>
       )}
     </div>
   );

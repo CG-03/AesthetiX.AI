@@ -29,6 +29,44 @@ const IMAGE_MODELS = [
   "google/gemini-flash-1.5"
 ];
 
+const HEURISTIC_BOUNDING_BOXES: Record<string, { x: number; y: number; width: number; height: number }> = {
+  sofa: { x: 10, y: 50, width: 40, height: 30 },
+  "coffee table": { x: 25, y: 65, width: 20, height: 15 },
+  lamp: { x: 75, y: 30, width: 10, height: 25 },
+  rug: { x: 10, y: 70, width: 60, height: 25 },
+  chair: { x: 60, y: 55, width: 20, height: 25 },
+  table: { x: 20, y: 60, width: 30, height: 20 },
+  bed: { x: 15, y: 45, width: 50, height: 40 },
+  pendant: { x: 40, y: 5, width: 20, height: 20 },
+  "wall art": { x: 30, y: 20, width: 25, height: 25 },
+  painting: { x: 30, y: 20, width: 25, height: 25 },
+  plant: { x: 5, y: 40, width: 15, height: 30 },
+  mirror: { x: 35, y: 25, width: 20, height: 20 },
+  curtain: { x: 80, y: 15, width: 15, height: 60 },
+  shelf: { x: 5, y: 15, width: 20, height: 50 },
+  wardrobe: { x: 5, y: 10, width: 25, height: 75 },
+  cabinet: { x: 70, y: 50, width: 20, height: 30 },
+};
+
+const KEYWORD_MAP: Record<string, string> = {
+  sofa: "seating",
+  chair: "seating",
+  table: "table",
+  "coffee table": "table",
+  lamp: "lighting",
+  pendant: "lighting",
+  bed: "bedroom",
+  rug: "decor",
+  "wall art": "decor",
+  painting: "decor",
+  curtain: "decor",
+  plant: "decor",
+  mirror: "decor",
+  shelf: "storage",
+  wardrobe: "storage",
+  cabinet: "storage",
+};
+
 // ── helpers ────────────────────────────────────────────────────────────────
 
 async function openrouterChat(
@@ -330,6 +368,133 @@ app.post("/api/remediate", async (req, res) => {
   } catch (error: any) {
     console.error("Remediation failed", error);
     res.status(500).json({ error: "Remediation failed", details: error.message });
+  }
+});
+
+// ── POST /api/detect-objects ──────────────────────────────────────────────
+
+app.post("/api/detect-objects", async (req, res) => {
+  console.log("\n--- New Object Detection Request Received ---");
+  try {
+    const { redesignedImage, analysisText } = req.body;
+    if (!redesignedImage) return res.status(400).json({ error: "Image required" });
+
+    const cleanBase64 = redesignedImage.includes(",") ? redesignedImage.split(",")[1] : redesignedImage;
+    const imageUrl = `data:image/jpeg;base64,${cleanBase64}`;
+
+    // 1. Vision Detection via Models with Fallbacks
+    const visionPrompt = "Look at this interior design image. Provide a JSON array of all furniture and decor items you see. For each item include: name, color, style, and approximate position (top-left, top-right, center, bottom-left, bottom-right). Return ONLY the JSON array.";
+
+    let visionDetected: any[] = [];
+    for (const model of VISION_MODELS) {
+      try {
+        console.log(`[OpenRouter] Starting Vision Detection via ${model}...`);
+        const visionResult = await openrouterChat(
+          model,
+          [
+            {
+              role: "user",
+              content: [
+                { type: "text", text: visionPrompt },
+                { type: "image_url", image_url: { url: imageUrl } },
+              ],
+            },
+          ]
+        );
+        
+        const content = visionResult?.choices?.[0]?.message?.content || "[]";
+        // Handle cases where AI wraps JSON in markdown blocks
+        const jsonStr = content.includes("```json") 
+          ? content.split("```json")[1].split("```")[0].trim()
+          : content.includes("```") 
+            ? content.split("```")[1].split("```")[0].trim()
+            : content.trim();
+        
+        const parsed = JSON.parse(jsonStr);
+        visionDetected = Array.isArray(parsed) ? parsed : (parsed.items || []);
+        
+        if (visionDetected.length > 0) {
+          console.log(`[SAM] Vision Success via ${model}.`);
+          break;
+        }
+      } catch (err: any) {
+        console.warn(`[SAM] Warning: Vision detection failed on ${model}: ${err.message}`);
+        if (model === VISION_MODELS[VISION_MODELS.length - 1]) {
+           console.log("[SAM] All vision models failed, falling back to text analysis only.");
+        }
+      }
+    }
+
+    // 2. Text-based Keyword Extraction (Fallback/Supplementary)
+    const textDetected: any[] = [];
+    if (analysisText) {
+      const lowerText = analysisText.toLowerCase();
+      Object.keys(HEURISTIC_BOUNDING_BOXES).forEach(keyword => {
+        if (lowerText.includes(keyword)) {
+          // Simple color/style lookup around keyword (best effort)
+          const words = lowerText.split(/\s+/);
+          const index = words.indexOf(keyword);
+          const context = words.slice(Math.max(0, index - 3), index + 3).join(" ");
+          
+          textDetected.push({
+            name: `${keyword}`,
+            label: keyword,
+            context: context
+          });
+        }
+      });
+    }
+
+    // 3. Merge and Assign Bounding Boxes
+    const finalObjects: any[] = [];
+    const seenLabels = new Set();
+    let idCounter = 1;
+
+    // Process vision results first as they are more accurate to current image
+    visionDetected.forEach((item: any) => {
+      const label = item.name || item.label || "item";
+      const catKey = Object.keys(KEYWORD_MAP).find(k => label.toLowerCase().includes(k)) || "decor";
+      const category = KEYWORD_MAP[catKey] || "decor";
+      const box = HEURISTIC_BOUNDING_BOXES[catKey] || HEURISTIC_BOUNDING_BOXES["wall art"];
+
+      finalObjects.push({
+        id: idCounter++,
+        label: label.toLowerCase(),
+        category: category,
+        color: item.color || "unknown",
+        style: item.style || "modern",
+        position: item.position || "center",
+        boundingBox: box
+      });
+      seenLabels.add(label.toLowerCase());
+    });
+
+    // Add text-based items if they weren't caught by vision
+    textDetected.forEach((item: any) => {
+      if (!Array.from(seenLabels).some(l => (l as string).includes(item.label))) {
+        const catKey = item.label;
+        const category = KEYWORD_MAP[catKey] || "decor";
+        const box = HEURISTIC_BOUNDING_BOXES[catKey] || HEURISTIC_BOUNDING_BOXES["wall art"];
+
+        finalObjects.push({
+          id: idCounter++,
+          label: item.label,
+          category: category,
+          color: "matching",
+          style: "modern",
+          position: "center",
+          boundingBox: box
+        });
+      }
+    });
+
+    console.log(`[SAM] Detected objects: ${finalObjects.map((o: any) => o.label).join(", ")}`);
+    res.status(200).json(finalObjects);
+
+  } catch (error: any) {
+    console.error("\n--- OBJECT DETECTION ERROR ---");
+    console.error(error);
+    res.status(500).json({ error: "Detection failed", details: error.message });
   }
 });
 
