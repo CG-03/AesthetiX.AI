@@ -22,6 +22,8 @@ interface ProjectWorkspaceProps {
   cartItems: any[];
   onAddToCart: (product: any) => void;
   onOpenCart: () => void;
+  detectedObjects?: any[];
+  isDetectingObjects?: boolean;
 }
 
 const products = [
@@ -31,7 +33,7 @@ const products = [
   { id: 4, name: 'Earthen Triptych Art', brand: 'Vastu AI Fine Arts', price: 320, image: 'https://images.unsplash.com/photo-1579783902614-a3fb3927b6a5?w=400&h=300&fit=crop' },
 ];
 
-export default function ProjectWorkspace({ onBack, apiResult, budget = 4500, cartItems, onAddToCart, onOpenCart }: ProjectWorkspaceProps) {
+export default function ProjectWorkspace({ onBack, apiResult, budget = 4500, cartItems, onAddToCart, onOpenCart, detectedObjects = [], isDetectingObjects = false }: ProjectWorkspaceProps) {
   const [renderMode, setRenderMode] = useState<'original' | 'daylight' | 'nighttime'>('daylight');
   const [costMode, setCostMode] = useState<'retail' | 'custom'>('retail');
   const [selectedProduct, setSelectedProduct] = useState<any>(null);
@@ -43,6 +45,8 @@ export default function ProjectWorkspace({ onBack, apiResult, budget = 4500, car
   const [showRemediateInput, setShowRemediateInput] = useState(false);
   const [activeImage, setActiveImage] = useState<string | null>(null);
   const [isBreakdownOpen, setIsBreakdownOpen] = useState(false);
+  
+  const [selectedObjectId, setSelectedObjectId] = useState<number | null>(null);
 
   useEffect(() => {
     if (apiResult?.redesignedImage) {
@@ -123,7 +127,31 @@ export default function ProjectWorkspace({ onBack, apiResult, budget = 4500, car
     return activeImage || "https://images.unsplash.com/photo-1600210492486-724fe5c67fb0?w=1200&h=800&fit=crop";
   };
 
-  const displayProducts = apiResult?.products && apiResult.products.length > 0 ? apiResult.products : products;
+  let displayProducts = apiResult?.products && apiResult.products.length > 0 ? apiResult.products : products;
+  
+  if (selectedObjectId) {
+    const obj = detectedObjects.find(o => o.id === selectedObjectId);
+    if (obj) {
+      const keywords = obj.label.toLowerCase().split(' ');
+      displayProducts = displayProducts.filter(p => 
+        p.name.toLowerCase().includes(obj.category.toLowerCase()) || 
+        keywords.some(k => k.length > 3 && p.name.toLowerCase().includes(k))
+      );
+      
+      if (displayProducts.length === 0) {
+        displayProducts = [{
+          id: obj.id * 1000,
+          name: `Custom ${obj.style || 'Modern'} ${obj.label}`,
+          searchQuery: `${obj.style !== 'matching' ? obj.style : ''} ${obj.color !== 'unknown' ? obj.color : ''} ${obj.label}`.trim(),
+          brand: 'Vastu AI Matches',
+          price: Math.floor(Math.random() * 400) + 80,
+          image: "https://plus.unsplash.com/premium_photo-1661765796030-cf2f4a5fbb5c?w=400&h=300&fit=crop"
+        }];
+      }
+    }
+  }
+
+  const selectedObjectLabel = selectedObjectId ? detectedObjects.find(o => o.id === selectedObjectId)?.label : null;
 
   return (
     <div className="min-h-screen bg-[#FBFBF9] font-sans text-[#1F1F1F]">
@@ -198,6 +226,47 @@ export default function ProjectWorkspace({ onBack, apiResult, budget = 4500, car
                 style={getRenderImageStyle()}
                 referrerPolicy="no-referrer"
               />
+
+              {/* Render Hotspots */}
+              {renderMode !== 'original' && detectedObjects && detectedObjects.length > 0 && (
+                <div className="absolute inset-0 z-10 pointer-events-none">
+                  {detectedObjects.map((obj: any) => (
+                    <button 
+                      key={obj.id}
+                      onClick={() => setSelectedObjectId(obj.id === selectedObjectId ? null : obj.id)}
+                      className={`absolute border-2 border-dashed transition-all duration-300 cursor-pointer group/hotspot pointer-events-auto rounded-lg
+                        ${selectedObjectId === obj.id 
+                          ? 'border-[#4A6D50] bg-[#4A6D50]/20 z-20 shadow-[0_0_15px_rgba(74,109,80,0.5)] border-solid' 
+                          : 'border-white/50 hover:border-white hover:bg-white/10 z-10'}`}
+                      style={{
+                        left: `${obj.boundingBox.x}%`,
+                        top: `${obj.boundingBox.y}%`,
+                        width: `${obj.boundingBox.width}%`,
+                        height: `${obj.boundingBox.height}%`
+                      }}
+                    >
+                      <div className={`absolute -top-8 left-1/2 -translate-x-1/2 bg-black/80 text-white text-[10px] font-bold uppercase tracking-widest px-3 py-1.5 rounded-full backdrop-blur-sm whitespace-nowrap transition-opacity duration-300 pointer-events-none
+                        ${selectedObjectId === obj.id ? 'opacity-100' : 'opacity-0 group-hover/hotspot:opacity-100'}`}>
+                        {obj.label}
+                      </div>
+
+                      {selectedObjectId === obj.id && (
+                        <div className="absolute top-2 right-2 bg-white text-[#4A6D50] p-1.5 rounded-full shadow-md animate-bounce">
+                           <Sparkles size={12} />
+                        </div>
+                      )}
+                    </button>
+                  ))}
+                </div>
+              )}
+
+              {/* Detect Objects Loading state overlay */}
+              {isDetectingObjects && (
+                <div className="absolute top-4 left-4 z-20 bg-black/60 backdrop-blur-sm text-white px-4 py-2 rounded-full text-[10px] font-bold tracking-widest uppercase flex items-center gap-2">
+                  <Loader2 size={12} className="animate-spin" /> Scanning items...
+                </div>
+              )}
+
               {/* Floating Action Button for Remediation */}
               {renderMode !== 'original' && (
                 <div className="absolute bottom-6 left-1/2 -translate-x-1/2 z-10 w-[90%] max-w-md print:hidden">
@@ -249,24 +318,6 @@ export default function ProjectWorkspace({ onBack, apiResult, budget = 4500, car
                    </p>
                 </div>
               )}
-            </div>
-            <div className="grid grid-cols-3 gap-4 h-64">
-              <div className="col-span-2 rounded-2xl overflow-hidden">
-                <img src="https://images.unsplash.com/photo-1540518614846-7eded433c457?w=600&h=400&fit=crop" className="w-full h-full object-cover" alt="texture" />
-              </div>
-              <div className="flex flex-col gap-4">
-                <div className="flex-1 rounded-2xl overflow-hidden bg-[#E5E8E6] p-4 flex flex-col justify-end">
-                  <span className="text-xs font-bold uppercase tracking-widest text-[#4A6D50]">Palette</span>
-                  <div className="flex gap-2 mt-2">
-                    <div className="w-6 h-6 rounded-full bg-[#E5E8E6] border border-gray-300" />
-                    <div className="w-6 h-6 rounded-full bg-[#4A6D50] border border-gray-300" />
-                    <div className="w-6 h-6 rounded-full bg-[#A89F95] border border-gray-300" />
-                  </div>
-                </div>
-                <div className="flex-1 rounded-2xl overflow-hidden">
-                  <img src="https://images.unsplash.com/photo-1598300042247-d088f8ab3a91?w=300&h=300&fit=crop" className="w-full h-full object-cover" alt="furniture" />
-                </div>
-              </div>
             </div>
           </div>
 
@@ -386,7 +437,16 @@ export default function ProjectWorkspace({ onBack, apiResult, budget = 4500, car
           {/* Sourcing List */}
           <div className="bg-white rounded-[2rem] p-6 border border-gray-100 shadow-sm flex-1">
             <div className="flex items-center justify-between mb-6">
-              <h2 className="font-bold text-lg">Top Picks & Sourcing</h2>
+              <div className="flex flex-col">
+                <h2 className="font-bold text-lg flex items-center gap-2">
+                   {selectedObjectLabel ? `Sourcing: ${selectedObjectLabel}` : 'Top Picks & Sourcing'}
+                </h2>
+                {selectedObjectLabel && (
+                  <button onClick={() => setSelectedObjectId(null)} className="text-xs text-[#4A6D50] hover:underline text-left mt-1 font-bold">
+                    Clear SAM Selection &times;
+                  </button>
+                )}
+              </div>
               <span className="bg-gray-100 text-gray-500 text-xs font-bold px-3 py-1 rounded-full uppercase tracking-wider">{displayProducts.length} Items</span>
             </div>
 
@@ -395,8 +455,8 @@ export default function ProjectWorkspace({ onBack, apiResult, budget = 4500, car
                 <ProductCard 
                   key={p.id || Math.random()} 
                   {...p} 
-                  amazonLink={`https://www.amazon.in/s?k=${encodeURIComponent(p.name)}`}
-                  indiaMartLink={`https://www.indiamart.com/search.mp?ss=${encodeURIComponent(p.name)}`}
+                  amazonLink={`https://www.amazon.in/s?k=${encodeURIComponent(p.searchQuery || p.name)}`}
+                  indiaMartLink={`https://www.indiamart.com/search.mp?ss=${encodeURIComponent(p.searchQuery || p.name)}`}
                   onClick3D={() => setSelectedProduct(p)} 
                   onAddToCart={onAddToCart}
                 />

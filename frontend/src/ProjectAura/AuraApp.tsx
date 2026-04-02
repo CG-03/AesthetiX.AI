@@ -177,7 +177,7 @@ export default function AuraApp() {
       lng: settings.defaultLng || null,
       budget: settings.defaultBudget || 4500,
       style: settings.defaultStyle || 'Modern Minimalist',
-      roomType: settings.defaultRoom || 'Living Room',
+      roomType: settings.defaultRoom || 'Bedroom',
     };
   });
 
@@ -381,6 +381,8 @@ export default function AuraApp() {
           cartItems={cartItems}
           onAddToCart={addToCart}
           onOpenCart={() => setIsCartOpen(true)}
+          detectedObjects={detectedObjects}
+          isDetectingObjects={isDetectingObjects}
         />
       )}
 

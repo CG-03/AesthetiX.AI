@@ -21,12 +21,8 @@ interface SectionData {
 
 const CATEGORIES = [
   { id: 'design', title: 'Design Analysis', icon: Sparkles, accent: '#B3541E', keywords: ['Design Analysis', 'Concept', 'Aesthetic'] },
-  { id: 'layout', title: 'Layout Recommendations', icon: Layout, accent: '#3B82F6', keywords: ['Layout', 'Space Planning', 'Arrangement'] },
   { id: 'vastu', title: 'Vastu Compliance Details', icon: Compass, accent: '#10B981', keywords: ['Vastu', 'Compliance', 'Directions'] },
-  { id: 'palette', title: 'Color Palette', icon: PaintBucket, accent: '#8B5CF6', keywords: ['Color Palette', 'Tones', 'Shades'] },
   { id: 'lighting', title: 'Lighting Suggestions', icon: Lightbulb, accent: '#F59E0B', keywords: ['Lighting', 'Illumination', 'Lamps'] },
-  { id: 'furniture', title: 'Furniture Recommendations', icon: Sofa, accent: '#14B8A6', keywords: ['Furniture', 'Decor', 'Items'] },
-  { id: 'picks', title: 'Top Picks & Sourcing', icon: ShoppingBag, accent: '#EC4899', keywords: ['Top Picks', 'Sourcing', 'Products'] },
   { id: 'cost', title: 'Cost Breakdown', icon: IndianRupee, accent: '#059669', keywords: ['Cost Breakdown', 'Budget', 'Estimation'] },
   { id: 'steps', title: 'Next Steps', icon: CheckCircle2, accent: '#6B7280', keywords: ['Next Steps', 'Action Plan', 'Checklist'] },
 ];
@@ -162,55 +158,142 @@ export default function AnalysisCards({ text }: AnalysisCardsProps) {
 
   function renderSectionContent(section: SectionData) {
     switch (section.id) {
-      case 'palette':
-        const hexCodes = section.content.match(/#[0-9A-Fa-f]{6}/g) || ['#B3541E', '#3B82F6', '#10B981', '#F59E0B'];
-        return (
-          <div className="grid grid-cols-2 sm:grid-cols-4 gap-4 mt-4">
-            {hexCodes.map((hex, i) => (
-              <div key={i} className="flex flex-col items-center gap-2 group cursor-pointer" onClick={() => handleCopyHex(hex)}>
-                <div 
-                  className="w-full aspect-square rounded-2xl shadow-inner border border-black/5 flex items-center justify-center transition-all hover:scale-95 animate-in zoom-in duration-500" 
-                  style={{ backgroundColor: hex, animationDelay: `${i * 100}ms` }}
-                >
-                  {copiedHex === hex ? <Check size={20} className="text-white drop-shadow-md" /> : <Copy size={16} className="text-white/40 opacity-0 group-hover:opacity-100" />}
-                </div>
-                <span className="text-[10px] font-bold text-gray-500 tracking-widest uppercase">{hex}</span>
-              </div>
-            ))}
-          </div>
-        );
+      case 'vastu': {
+        // Extract Vastu Score from content
+        const scoreMatch = section.content.match(/vastu score[:\s]+(\d+(?:\.\d+)?)\s*\/\s*10/i);
+        const vastuScore = scoreMatch ? parseFloat(scoreMatch[1]) : 7.5;
+        const scorePct = (vastuScore / 10) * 100;
+        const circumference = 364.42;
+        const offset = circumference - (scorePct / 100) * circumference;
 
-      case 'vastu':
+        // Helper: extract a sub-section between two bold headers
+        const extractSub = (label: string, nextLabel?: string): string => {
+          const start = section.content.indexOf(`**${label}`);
+          if (start === -1) return '';
+          const contentStart = section.content.indexOf('\n', start) + 1;
+          const end = nextLabel ? section.content.indexOf(`**${nextLabel}`, contentStart) : section.content.length;
+          return section.content.slice(contentStart, end === -1 ? undefined : end).trim();
+        };
+
+        const directionText = extractSub('Direction & Zone Analysis', 'Five Element');
+        const elementsText = extractSub('Five Element', 'Ideal Furniture');
+        const furnitureText = extractSub('Ideal Furniture Placement', 'Vastu Dos');
+        const dosText = extractSub('Vastu Dos', "Vastu Don");
+        const dontsText = extractSub("Vastu Don", 'Vastu Corrections');
+        const correctionsText = extractSub('Vastu Corrections', 'Vastu Score');
+
+        // Parse bullet lists
+        const parseBullets = (text: string) => text.split('\n').filter(l => l.trim().match(/^[-•*]|^\d+\./));
+        const dosList = parseBullets(dosText);
+        const dontsList = parseBullets(dontsText);
+        const correctionsList = parseBullets(correctionsText);
+
         return (
-          <div className="flex flex-col md:flex-row items-center gap-8 py-4">
-            <div className="relative w-32 h-32 flex items-center justify-center">
-              <svg className="w-full h-full rotate-[-90deg]">
-                <circle 
-                  cx="64" cy="64" r="58" 
-                  fill="transparent" 
-                  stroke="#F3F4F6" 
-                  strokeWidth="8" 
-                />
-                <circle 
-                  cx="64" cy="64" r="58" 
-                  fill="transparent" 
-                  stroke="#10B981" 
-                  strokeWidth="8" 
-                  strokeDasharray="364.42" 
-                  strokeDashoffset="54.66" 
-                  className="transition-all duration-1000 ease-out"
-                />
-              </svg>
-              <div className="absolute inset-0 flex flex-col items-center justify-center text-center">
-                <span className="text-2xl font-black text-gray-900 leading-none">8.5</span>
-                <span className="text-[9px] font-bold text-emerald-600 uppercase tracking-widest mt-1">Vastu Score</span>
+          <div className="py-4 space-y-6">
+            {/* Score ring */}
+            <div className="flex items-center gap-6 p-4 bg-emerald-50 rounded-2xl">
+              <div className="relative w-24 h-24 flex-shrink-0 flex items-center justify-center">
+                <svg className="w-full h-full rotate-[-90deg]">
+                  <circle cx="48" cy="48" r="42" fill="transparent" stroke="#D1FAE5" strokeWidth="7" />
+                  <circle cx="48" cy="48" r="42" fill="transparent" stroke="#10B981" strokeWidth="7"
+                    strokeDasharray={`${(42 * 2 * Math.PI).toFixed(2)}`}
+                    strokeDashoffset={`${((42 * 2 * Math.PI) * (1 - vastuScore / 10)).toFixed(2)}`}
+                    className="transition-all duration-1000 ease-out" />
+                </svg>
+                <div className="absolute inset-0 flex flex-col items-center justify-center text-center">
+                  <span className="text-xl font-black text-gray-900 leading-none">{vastuScore}</span>
+                  <span className="text-[8px] font-bold text-emerald-600 uppercase tracking-wider mt-0.5">/10</span>
+                </div>
+              </div>
+              <div>
+                <p className="font-bold text-emerald-800 text-sm">Vastu Compliance Score</p>
+                <p className="text-xs text-emerald-700 mt-1 leading-relaxed max-w-xs">
+                  {section.content.match(/vastu score[:\s]+\d[\d.]*\s*\/\s*10[.\s]*([^*\n]{0,200})/i)?.[1]?.trim() || "Vastu energy assessment for this space."}
+                </p>
               </div>
             </div>
-            <div className="flex-1 text-sm text-gray-600 leading-relaxed whitespace-pre-wrap">
-              {section.content}
-            </div>
+
+            {/* Direction & Zone */}
+            {directionText && (
+              <div className="space-y-2">
+                <h4 className="text-[11px] font-bold uppercase tracking-[0.15em] text-[#10B981] flex items-center gap-2">
+                  <span className="w-5 h-5 bg-emerald-100 rounded-full flex items-center justify-center text-emerald-600 text-[10px]">N</span>
+                  Direction & Zone Analysis
+                </h4>
+                <p className="text-sm text-gray-600 leading-relaxed">{directionText}</p>
+              </div>
+            )}
+
+            {/* Five Elements */}
+            {elementsText && (
+              <div className="space-y-2">
+                <h4 className="text-[11px] font-bold uppercase tracking-[0.15em] text-[#10B981]">⬡ Five Element Placement (Pancha Bhuta)</h4>
+                <p className="text-sm text-gray-600 leading-relaxed whitespace-pre-wrap">{elementsText}</p>
+              </div>
+            )}
+
+            {/* Furniture Placement */}
+            {furnitureText && (
+              <div className="space-y-2">
+                <h4 className="text-[11px] font-bold uppercase tracking-[0.15em] text-[#10B981]">🛋 Ideal Furniture Placement</h4>
+                <p className="text-sm text-gray-600 leading-relaxed whitespace-pre-wrap">{furnitureText}</p>
+              </div>
+            )}
+
+            {/* Dos & Don'ts */}
+            {(dosList.length > 0 || dontsList.length > 0) && (
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                {dosList.length > 0 && (
+                  <div className="bg-emerald-50 p-4 rounded-2xl space-y-2">
+                    <h4 className="text-[11px] font-bold uppercase tracking-[0.15em] text-emerald-700">✓ Vastu Dos</h4>
+                    <ul className="space-y-1.5">
+                      {dosList.map((item, i) => (
+                        <li key={i} className="flex gap-2 text-xs text-emerald-800">
+                          <span className="text-emerald-500 mt-0.5 flex-shrink-0">✓</span>
+                          <span>{item.replace(/^[-•*]\s*|\d+\.\s*/, '')}</span>
+                        </li>
+                      ))}
+                    </ul>
+                  </div>
+                )}
+                {dontsList.length > 0 && (
+                  <div className="bg-red-50 p-4 rounded-2xl space-y-2">
+                    <h4 className="text-[11px] font-bold uppercase tracking-[0.15em] text-red-700">✗ Vastu Don'ts</h4>
+                    <ul className="space-y-1.5">
+                      {dontsList.map((item, i) => (
+                        <li key={i} className="flex gap-2 text-xs text-red-800">
+                          <span className="text-red-400 mt-0.5 flex-shrink-0">✗</span>
+                          <span>{item.replace(/^[-•*]\s*|\d+\.\s*/, '')}</span>
+                        </li>
+                      ))}
+                    </ul>
+                  </div>
+                )}
+              </div>
+            )}
+
+            {/* Corrections */}
+            {correctionsList.length > 0 && (
+              <div className="bg-amber-50 p-4 rounded-2xl space-y-2">
+                <h4 className="text-[11px] font-bold uppercase tracking-[0.15em] text-amber-700">⚠ Vastu Corrections Needed</h4>
+                <ul className="space-y-2">
+                  {correctionsList.map((item, i) => (
+                    <li key={i} className="flex gap-2 text-xs text-amber-900">
+                      <span className="w-5 h-5 bg-amber-200 rounded-full flex-shrink-0 flex items-center justify-center font-bold text-amber-700">{i + 1}</span>
+                      <span className="leading-relaxed">{item.replace(/^[-•*]\s*|\d+\.\s*/, '')}</span>
+                    </li>
+                  ))}
+                </ul>
+              </div>
+            )}
+
+            {/* Fallback: show raw text if no sub-sections parsed */}
+            {!directionText && !dosList.length && (
+              <p className="text-sm text-gray-600 leading-relaxed whitespace-pre-wrap">{section.content}</p>
+            )}
           </div>
         );
+      }
 
       case 'cost':
         const categories = [

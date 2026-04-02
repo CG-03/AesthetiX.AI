@@ -15,6 +15,27 @@ export default function Step3Aesthetic({ onBack, onGenerate, onDataChange, isGen
   const [referenceImages, setReferenceImages] = useState<string[]>([]);
   const fileInputRef = React.useRef<HTMLInputElement>(null);
 
+  const [loadingStage, setLoadingStage] = useState(0);
+  const loadingStages = [
+    "Analyzing your room geometry...",
+    "Detecting furniture and layout...",
+    "Applying your design style...",
+    "Rendering lighting & materials...",
+    "Generating your redesign...",
+    "Adding finishing touches...",
+    "Almost ready..."
+  ];
+
+  React.useEffect(() => {
+    if (isGenerating) {
+      setLoadingStage(0);
+      const interval = setInterval(() => {
+        setLoadingStage((prev) => Math.min(prev + 1, loadingStages.length - 1));
+      }, 3000); // Progress every 3s
+      return () => clearInterval(interval);
+    }
+  }, [isGenerating]);
+
   const handlePillClick = (pill: string) => {
     setActivePill(pill);
     onDataChange?.({ style: pill });
@@ -56,6 +77,48 @@ export default function Step3Aesthetic({ onBack, onGenerate, onDataChange, isGen
       });
     }
   };
+
+  if (isGenerating) {
+    return (
+      <div className="min-h-screen bg-[#FBFBF9] font-sans text-[#1F1F1F] flex flex-col items-center justify-center relative overflow-hidden animate-in fade-in duration-500">
+        {/* Subtle animated background shapes */}
+        <div className="absolute top-[10%] left-[20%] w-[500px] h-[500px] bg-[#4A6D50]/5 rounded-full blur-[100px] animate-pulse" />
+        <div className="absolute bottom-[10%] right-[10%] w-[400px] h-[400px] bg-[#A89F95]/10 rounded-full blur-[100px] animate-pulse delay-1000" />
+        
+        <div className="z-10 flex flex-col items-center max-w-md w-full px-8 animate-in slide-in-from-bottom-10 duration-700">
+          <div className="w-24 h-24 bg-white rounded-full shadow-[0_8px_30px_rgb(0,0,0,0.08)] flex items-center justify-center mb-10 relative">
+            <div className="absolute inset-0 rounded-full border-4 border-gray-100" />
+            <div className="absolute inset-0 rounded-full border-4 border-[#4A6D50] border-t-transparent animate-spin" />
+            <Sparkles className="text-[#4A6D50] w-10 h-10 animate-pulse" />
+          </div>
+
+          <h2 className="text-3xl font-bold tracking-tight mb-4 text-center text-[#1F1F1F]">
+            Crafting your space
+          </h2>
+          
+          <div className="h-8 mb-10 flex items-center justify-center">
+            <p className="text-gray-500 font-medium text-[15px] animate-in fade-in slide-in-from-bottom-2 duration-500" key={loadingStage}>
+              {loadingStages[loadingStage]}
+            </p>
+          </div>
+
+          {/* Progress bar */}
+          <div className="w-full bg-gray-200 h-2.5 rounded-full overflow-hidden shadow-inner">
+            <div 
+              className="h-full bg-[#4A6D50] rounded-full transition-all duration-1000 ease-out relative overflow-hidden"
+              style={{ width: `${Math.min(100, ((loadingStage + 1) / loadingStages.length) * 100)}%` }}
+            >
+               <div className="absolute inset-0 bg-white/20 w-full animate-[shimmer_2s_infinite] -translate-x-full" style={{ backgroundImage: 'linear-gradient(90deg, transparent, rgba(255,255,255,0.4), transparent)' }} />
+            </div>
+          </div>
+          
+          <p className="text-xs text-gray-400 font-medium mt-6 uppercase tracking-[0.2em]">
+            This takes about 20-30 seconds
+          </p>
+        </div>
+      </div>
+    );
+  }
 
   return (
     <div className="min-h-screen bg-[#FBFBF9] font-sans text-[#1F1F1F] flex flex-col">
@@ -157,18 +220,9 @@ export default function Step3Aesthetic({ onBack, onGenerate, onDataChange, isGen
         <button 
           onClick={onGenerate} 
           disabled={isGenerating}
-          className={`bg-[#4A6D50] text-white px-8 py-4 rounded-xl font-bold text-xs uppercase tracking-wider flex items-center gap-2 hover:bg-[#3A5640] transition-colors shadow-xl shadow-[#4A6D50]/30 ${isGenerating ? 'opacity-70 cursor-not-allowed' : ''}`}
+          className="bg-[#4A6D50] text-white px-8 py-4 rounded-xl font-bold text-xs uppercase tracking-wider flex items-center gap-2 hover:bg-[#3A5640] transition-colors shadow-xl shadow-[#4A6D50]/30"
         >
-          {isGenerating ? (
-            <>
-              <div className="w-4 h-4 border-2 border-white/30 border-t-white rounded-full animate-spin" />
-              Generating...
-            </>
-          ) : (
-            <>
-              <Sparkles size={16} /> GENERATE MY DESIGN
-            </>
-          )}
+          <Sparkles size={16} /> GENERATE MY DESIGN
         </button>
       </footer>
     </div>

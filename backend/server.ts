@@ -25,8 +25,10 @@ const VISION_MODELS = [
 ];
 
 const IMAGE_MODELS = [
-  "google/gemini-2.5-flash-image",
-  "google/gemini-flash-1.5"
+  "google/gemini-2.5-flash",
+  "google/gemini-pro-1.5",
+  "meta-llama/llama-3.2-11b-vision-instruct:free",
+  "google/gemini-1.5-flash"
 ];
 
 const HEURISTIC_BOUNDING_BOXES: Record<string, { x: number; y: number; width: number; height: number }> = {
@@ -114,11 +116,49 @@ app.post("/api/analyze", async (req, res) => {
     }
 
     // ── Normalise incoming base64 ─────────────────────────────────────────
-    const cleanBase64 = image.includes(",") ? image.split(",")[1] : image;
-    const imageUrl = `data:image/jpeg;base64,${cleanBase64}`;
+    const imageUrl = image.startsWith("data:") ? image : `data:image/jpeg;base64,${image}`;
 
     // ── Prompts ───────────────────────────────────────────────────────────
-    const analysisPrompt = `You are an expert AI Interior Designer. Analyze this photo of a ${roomType || "room"} for a ${ownership || "homeowner"} in ${location || "the city"}. The desired style is ${style || "modern"}, facing ${direction || "North"}, with a budget of ₹${budget || "50000"}${pinterestUrl ? ` (Pinterest inspiration: ${pinterestUrl})` : ""}. Please provide a detailed design analysis, layout design, Vastu-compliant color palette, lighting suggestions, shoppable furniture links, and a cost estimation. Use your vision capabilities to accurately identify existing structures.
+    const analysisPrompt = `You are a master interior designer and certified Vastu Shastra consultant. Analyze this ${roomType || "room"} photo for a ${ownership || "homeowner"} in ${location || "the city"}. Desired style: ${style || "Modern"}, primary facing direction: ${direction || "North"}, budget: ₹${budget || "50000"}.
+
+Respond with the following sections in EXACTLY this order, using ### headings:
+
+### Design Analysis
+Describe the overall design concept, aesthetic direction, mood, and visual language that suits this ${roomType || "room"} in ${style || "Modern"} style. 2-3 paragraphs.
+
+### Vastu Compliance Details
+Provide an EXTREMELY detailed, room-specific Vastu Shastra analysis for this ${roomType || "room"} facing ${direction || "North"}. You MUST include all of the following sub-sections:
+
+**Direction & Zone Analysis**
+Explain what the ${direction || "North"}-facing orientation means specifically for a ${roomType || "room"} according to Vastu. Identify which zone (NE, NW, SE, SW, centre Brahmasthana) this direction activates and what energies it governs.
+
+**Five Element Placement (Pancha Bhuta)**
+Map each of the 5 Vastu elements to specific room zones: Earth (SW – heavy furniture & stability), Water (NE – water features, mirrors, blues), Fire (SE – lighting, electronics, reds), Air (NW – windows, fans, light decor), Space (centre – keep clear). Give concrete placement advice for THIS ${roomType || "room"}.
+
+**Ideal Furniture Placement by Direction**
+List exactly which furniture pieces should go in which directions and why. For example (adapt to ${roomType || "room"} type): bed head facing South/East, study desk facing North/East, wardrobe in SW, etc. Be specific to the ${roomType || "room"}.
+
+**Vastu Dos for this ${roomType || "room"}**
+Provide 6-8 actionable dos that are specific to a ${direction || "North"}-facing ${roomType || "room"}. Cover colours, materials, lighting positions, door placement, mirror placement, plants, and artefacts.
+
+**Vastu Don'ts for this ${roomType || "room"}**
+Provide 6-8 strict don'ts for the same space. Include what NOT to place in the SW corner, what colours to avoid on which walls, structural violations, and harmful placements.
+
+**Vastu Corrections Needed**
+Based on what you can see in the uploaded image, identify 3-5 specific Vastu violations or energy imbalances present, and give a precise corrective action for each.
+
+**Vastu Score: X/10**
+Rate the current room layout and design out of 10 for Vastu compliance, with a justification.
+
+### Lighting Suggestions
+Natural and artificial lighting recommendations specific to a ${direction || "North"}-facing ${roomType || "room"}: ideal colour temperatures, placement zones, Vastu-aligned lighting rules (never place main light in centre, etc.).
+
+### Cost Breakdown
+Detailed budget allocation for a ₹${budget || "50000"} renovation of this ${roomType || "room"}: what percentage for furniture, civil work, lighting, paint, accessories. Give specific ₹ values.
+
+### Next Steps
+A prioritised action checklist of 5-7 concrete steps to implement this design immediately.
+
 CRITICAL: At the very end of your response, output a strict JSON array of 4 distinct suggested furniture/decor products formatted EXACTLY like this: [PRODUCTS_JSON_START][{"id": 1, "name": "Minimalist Chair", "brand": "DesignCo", "price": 450, "image": "https://images.unsplash.com/photo-1598300042247-d088f8ab3a91?w=400&h=300&fit=crop"}][PRODUCTS_JSON_END]`;
 
     const designPrompt = `REDESIGN RENDER: ${roomType || "room"}, ${style || "modern"} style interior design, tailored for a ${ownership || "homeowner"} in ${location || "the city"}. High quality, realistic, professional architecture visualization, 8k resolution. 
@@ -225,18 +265,28 @@ CRITICAL ARCHITECTURAL LOCK: Use the provided image as the ABSOLUTE structural t
           if (imageBase64) {
             console.log(`[OpenRouter] Success: Image extracted via ${model}.`);
             return imageBase64;
+          } else {
+            throw new Error("Model returned successfully but no valid base64 image could be extracted.");
           }
         } catch (err: any) {
           console.warn(`[OpenRouter] Warning: ${model} failed: ${err.message}`);
-          if (model === IMAGE_MODELS[IMAGE_MODELS.length - 1]) return "";
+          
+          // Short-circuit completely if it's an API limit / billing issue
+          if (err.message.includes("403") || err.message.includes("402") || err.message.includes("429") || err.message.includes("credit") || err.message.includes("limit")) {
+            throw new Error(`API_QUOTA_EXCEEDED: ${err.message}`);
+          }
+          
+          if (model === IMAGE_MODELS[IMAGE_MODELS.length - 1]) {
+             throw new Error(`Generation models exhausted. Last error: ${err.message}`);
+          }
         }
       }
-      return "";
+      throw new Error("Unexpected end of generateImage function");
     };
 
     // Sequential generation to ensure consistency
     const daylightImage = await generateImage(combinedDayPrompt, imageUrl);
-    if (!daylightImage) throw new Error("Daylight Image Generation Error: failed to extract base64");
+    if (!daylightImage) throw new Error("Daylight Image Generation Error: Failed to generate or extract base64 rendering.");
 
     console.log("[OpenRouter] Daylight stable. Generating matching nighttime variant...");
 
@@ -270,9 +320,20 @@ CRITICAL ARCHITECTURAL LOCK: Use the provided image as the ABSOLUTE structural t
   } catch (error: any) {
     console.error("\n--- CRITICAL BACKEND ENDPOINT ERROR ---");
     console.error(error);
+    
+    const msg = error?.message || String(error);
+    
+    // Explicitly handle OpenRouter billing/quota errors
+    if (msg.includes("API_QUOTA_EXCEEDED") || msg.includes("403") || msg.includes("402") || msg.includes("limit exceeded")) {
+      return res.status(429).json({
+        error: "Quota Exceeded",
+        details: "AI API limit exceeded. Please ensure your OpenRouter account has active credits and hasn't hit rate limits."
+      });
+    }
+
     res.status(500).json({
       error: "AI generation failed",
-      details: error?.message || String(error),
+      details: msg,
     });
   }
 });
@@ -285,8 +346,7 @@ app.post("/api/remediate", async (req, res) => {
     const { image, promptOverrides } = req.body;
     if (!image) return res.status(400).json({ error: "Image required" });
 
-    const cleanBase64 = image.includes(",") ? image.split(",")[1] : image;
-    const imageUrl = `data:image/jpeg;base64,${cleanBase64}`;
+    const imageUrl = image.startsWith("data:") ? image : `data:image/jpeg;base64,${image}`;
 
     const remediatePrompt = `REDESIGN RENDER: Apply the following user modifications: "${promptOverrides || "Improve the design subtly"}". CRITICAL INSTRUCTION: Use the provided image as the exact structural base. PRESERVE ALL walls, windows, doors, pillars, ceiling height, and room dimensions. Do NOT generate a new room. Redesign ONLY the interior decor to match the requested modification. High quality, realistic architecture visualization, 8k resolution.`;
 
@@ -379,11 +439,10 @@ app.post("/api/detect-objects", async (req, res) => {
     const { redesignedImage, analysisText } = req.body;
     if (!redesignedImage) return res.status(400).json({ error: "Image required" });
 
-    const cleanBase64 = redesignedImage.includes(",") ? redesignedImage.split(",")[1] : redesignedImage;
-    const imageUrl = `data:image/jpeg;base64,${cleanBase64}`;
+    const imageUrl = redesignedImage.startsWith("data:") ? redesignedImage : `data:image/jpeg;base64,${redesignedImage}`;
 
     // 1. Vision Detection via Models with Fallbacks
-    const visionPrompt = "Look at this interior design image. Provide a JSON array of all furniture and decor items you see. For each item include: name, color, style, and approximate position (top-left, top-right, center, bottom-left, bottom-right). Return ONLY the JSON array.";
+    const visionPrompt = "Look at this interior design image. Provide a JSON array of all furniture and decor items you see. For each item include: name, color, style, and a boundingBox object with 'x', 'y', 'width', 'height' representing the object's position and size in percentages (0-100) relative to the image dimensions. Return ONLY the JSON array.";
 
     let visionDetected: any[] = [];
     for (const model of VISION_MODELS) {
@@ -455,7 +514,16 @@ app.post("/api/detect-objects", async (req, res) => {
       const label = item.name || item.label || "item";
       const catKey = Object.keys(KEYWORD_MAP).find(k => label.toLowerCase().includes(k)) || "decor";
       const category = KEYWORD_MAP[catKey] || "decor";
-      const box = HEURISTIC_BOUNDING_BOXES[catKey] || HEURISTIC_BOUNDING_BOXES["wall art"];
+      
+      let box = HEURISTIC_BOUNDING_BOXES[catKey] || HEURISTIC_BOUNDING_BOXES["wall art"];
+      if (item.boundingBox && typeof item.boundingBox.x === 'number') {
+        box = {
+          x: item.boundingBox.x,
+          y: item.boundingBox.y,
+          width: item.boundingBox.width || 20,
+          height: item.boundingBox.height || 20
+        };
+      }
 
       finalObjects.push({
         id: idCounter++,
