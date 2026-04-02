@@ -2,7 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { 
   Sparkles, Layout, Compass, PaintBucket, Lightbulb, Sofa, 
   ShoppingBag, IndianRupee, CheckCircle2, ChevronRight, 
-  Copy, Check, Sun, Moon 
+  Copy, Check, Sun, Moon, X
 } from 'lucide-react';
 
 interface AnalysisCardsProps {
@@ -28,7 +28,7 @@ const CATEGORIES = [
 ];
 
 export default function AnalysisCards({ text }: AnalysisCardsProps) {
-  const [expandedId, setExpandedId] = useState<string | null>('design');
+  const [selectedSection, setSelectedSection] = useState<SectionData | null>(null);
   const [parsedSections, setParsedSections] = useState<SectionData[]>([]);
   const [checklist, setChecklist] = useState<Record<string, boolean>>({});
   const [copiedHex, setCopiedHex] = useState<string | null>(null);
@@ -90,12 +90,19 @@ export default function AnalysisCards({ text }: AnalysisCardsProps) {
     setParsedSections(sections);
   }, [text]);
 
+  let globalVastuScore = 7.5;
+  const vastuSection = parsedSections.find(s => s.id === 'vastu');
+  if (vastuSection) {
+    const scoreMatch = vastuSection.content.match(/vastu score[:\s]+(\d+(?:\.\d+)?)\s*\/\s*10/i);
+    if (scoreMatch) globalVastuScore = parseFloat(scoreMatch[1]);
+  }
+
   return (
     <div className="flex flex-col gap-6 animate-in fade-in slide-in-from-bottom-10 duration-1000">
       {/* Summary Stats Bar */}
       <div className="grid grid-cols-2 md:grid-cols-4 gap-4 mb-4">
         {[
-          { label: 'Vastu Score', value: '8.5/10', color: 'text-emerald-600', bg: 'bg-emerald-50' },
+          { label: 'Vastu Score', value: `${globalVastuScore}/10`, color: 'text-emerald-600', bg: 'bg-emerald-50' },
           { label: 'Total Items', value: '12', color: 'text-blue-600', bg: 'bg-blue-50' },
           { label: 'Est. Savings', value: '₹14,200', color: 'text-orange-600', bg: 'bg-orange-50' },
           { label: 'Rooms Covered', value: '1', color: 'text-purple-600', bg: 'bg-purple-50' },
@@ -107,61 +114,90 @@ export default function AnalysisCards({ text }: AnalysisCardsProps) {
         ))}
       </div>
 
-      {/* Accordion Cards */}
-      <div className="space-y-4">
+      {/* Bento Grid Cards */}
+      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
         {parsedSections.map((section, idx) => {
           const Icon = section.icon;
-          const isExpanded = expandedId === section.id;
+          let spanClass = "col-span-1";
+          if (idx === 0) spanClass = "md:col-span-2";
+          if (idx === 3) spanClass = "lg:col-span-2";
+          if (idx === 4) spanClass = "col-span-1 md:col-span-2 lg:col-span-3";
 
           return (
-            <div 
+            <button 
               key={section.id}
-              className={`bg-white rounded-3xl border border-gray-100 shadow-sm overflow-hidden transition-all duration-500 ease-in-out ${isExpanded ? 'ring-2 ring-offset-2' : ''}`}
+              onClick={() => setSelectedSection(section)}
+              className={`bg-white rounded-3xl border border-gray-100 shadow-sm overflow-hidden transition-all duration-300 hover:scale-[1.02] hover:shadow-md text-left flex flex-col p-6 group ${spanClass}`}
               style={{ 
-                borderLeft: `6px solid ${section.accent}`,
-                animationDelay: `${idx * 150}ms`,
-                // @ts-ignore
-                '--ring-color': section.accent 
+                borderTop: `6px solid ${section.accent}`,
+                animationDelay: `${idx * 150}ms`
               }}
             >
-              <button 
-                onClick={() => setExpandedId(isExpanded ? null : section.id)}
-                className="w-full p-6 flex items-center justify-between text-left group"
-              >
-                <div className="flex items-center gap-5">
-                  <div className="w-12 h-12 rounded-2xl flex items-center justify-center transition-transform group-hover:scale-110 duration-300" style={{ backgroundColor: `${section.accent}15` }}>
-                    <Icon size={24} style={{ color: section.accent }} />
-                  </div>
-                  <div>
-                    <h3 className="font-bold text-gray-900 tracking-tight">{section.title}</h3>
-                    <p className={`text-xs text-gray-400 transition-opacity duration-300 ${isExpanded ? 'opacity-0 h-0 overflow-hidden' : 'opacity-100 mt-1'}`}>
-                      {section.preview}
-                    </p>
-                  </div>
+              <div className="flex items-center gap-4 mb-4">
+                <div className="w-12 h-12 rounded-2xl flex items-center justify-center transition-transform group-hover:scale-110 duration-300 flex-shrink-0" style={{ backgroundColor: `${section.accent}15` }}>
+                  <Icon size={24} style={{ color: section.accent }} />
                 </div>
-                <div className={`transition-transform duration-500 ${isExpanded ? 'rotate-90' : ''}`} style={{ color: section.accent }}>
-                  <ChevronRight size={20} />
-                </div>
-              </button>
-
-              <div className={`transition-all duration-700 ease-in-out px-6 ${isExpanded ? 'max-h-[800px] pb-8 opacity-100' : 'max-h-0 opacity-0 pointer-events-none'}`}>
-                <div className="pt-2 border-t border-gray-50 mt-2">
-                   {renderSectionContent(section)}
-                </div>
+                <h3 className="font-bold text-gray-900 tracking-tight text-lg">{section.title}</h3>
               </div>
-            </div>
+              <p className="text-sm text-gray-500 flex-1">
+                {section.preview}
+              </p>
+              <div className="mt-4 flex items-center justify-between text-xs font-bold uppercase tracking-wider opacity-70 group-hover:opacity-100 transition-opacity" style={{ color: section.accent }}>
+                View Full Details 
+                <ChevronRight size={16} className="transition-transform group-hover:translate-x-1" />
+              </div>
+            </button>
           );
         })}
       </div>
+
+      {/* Detail Modal */}
+      {selectedSection && (
+        <div className="fixed inset-0 z-[1000] flex items-center justify-center p-4 sm:p-6 bg-black/60 backdrop-blur-sm animate-in fade-in duration-300" onClick={() => setSelectedSection(null)}>
+          <div 
+            className="bg-white rounded-[2rem] w-full max-w-2xl max-h-[90vh] flex flex-col relative shadow-2xl overflow-hidden animate-in zoom-in-95 duration-300" 
+            onClick={e => e.stopPropagation()}
+            style={{ borderTop: `8px solid ${selectedSection.accent}` }}
+          >
+             <button 
+               onClick={() => setSelectedSection(null)} 
+               className="absolute top-4 right-4 z-10 w-10 h-10 flex items-center justify-center bg-gray-100 rounded-full text-gray-600 hover:bg-gray-200 transition-colors"
+             >
+               <X size={20} />
+             </button>
+
+             <div className="p-6 md:p-8 border-b border-gray-100 flex items-center gap-4 sticky top-0 bg-white/95 backdrop-blur z-0 shrink-0">
+                <div className="w-14 h-14 rounded-2xl flex items-center justify-center shrink-0" style={{ backgroundColor: `${selectedSection.accent}15` }}>
+                  <selectedSection.icon size={28} style={{ color: selectedSection.accent }} />
+                </div>
+                <div className="flex-1 pr-8">
+                  <h2 className="text-2xl font-bold tracking-tight text-gray-900 leading-tight">{selectedSection.title}</h2>
+                  <p className="text-sm text-gray-500 font-medium mt-1 uppercase tracking-widest text-[10px]">Detailed Analysis & Insights</p>
+                </div>
+             </div>
+
+             <div className="p-6 md:p-8 overflow-y-auto overflow-x-hidden flex-1 pb-12">
+               {renderSectionContent(selectedSection)}
+             </div>
+             
+             <div className="p-6 border-t border-gray-100 bg-gray-50 flex justify-end shrink-0">
+                <button 
+                  onClick={() => setSelectedSection(null)}
+                  className="px-6 py-2.5 bg-gray-900 text-white text-sm font-bold rounded-xl shadow-sm hover:bg-gray-800 transition-colors"
+                >
+                  Close Details
+                </button>
+             </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 
   function renderSectionContent(section: SectionData) {
     switch (section.id) {
       case 'vastu': {
-        // Extract Vastu Score from content
-        const scoreMatch = section.content.match(/vastu score[:\s]+(\d+(?:\.\d+)?)\s*\/\s*10/i);
-        const vastuScore = scoreMatch ? parseFloat(scoreMatch[1]) : 7.5;
+        const vastuScore = globalVastuScore;
         const scorePct = (vastuScore / 10) * 100;
         const circumference = 364.42;
         const offset = circumference - (scorePct / 100) * circumference;
@@ -313,7 +349,7 @@ export default function AnalysisCards({ text }: AnalysisCardsProps) {
                 <div className="h-3 w-full bg-gray-100 rounded-full overflow-hidden">
                   <div 
                     className="h-full bg-emerald-500 rounded-full transition-all duration-1000 ease-out"
-                    style={{ width: expandedId === 'cost' ? `${cat.pct}%` : '0%', transitionDelay: `${i * 200}ms` }}
+                    style={{ width: selectedSection?.id === 'cost' ? `${cat.pct}%` : '0%', transitionDelay: `${i * 200}ms` }}
                   />
                 </div>
               </div>

@@ -13,23 +13,21 @@ const port = process.env.PORT || 5000;
 app.use(cors());
 app.use(express.json({ limit: "20mb" }));
 
+// ── Startup checks ────────────────────────────────────────────────────────
+if (!OPENROUTER_API_KEY || OPENROUTER_API_KEY.length < 20) {
+  console.error("[STARTUP] ERROR: OPENROUTER_API_KEY is missing or invalid in backend/.env!");
+} else {
+  console.log(`[STARTUP] OpenRouter API key loaded: ${OPENROUTER_API_KEY.substring(0, 12)}...`);
+}
+
 // Health check route
 app.get("/", (_req, res) => {
   res.send({ status: "online", message: "Vastu AI Backend is running" });
 });
 
-const VISION_MODELS = [
-  "nvidia/nemotron-nano-12b-v2-vl:free",
-  "google/gemini-flash-1.5-8b",
-  "meta-llama/llama-3.2-11b-vision-instruct:free"
-];
-
-const IMAGE_MODELS = [
-  "google/gemini-2.5-flash",
-  "google/gemini-pro-1.5",
-  "meta-llama/llama-3.2-11b-vision-instruct:free",
-  "google/gemini-1.5-flash"
-];
+// Single model configuration — no fallbacks
+const TEXT_MODEL = "nvidia/nemotron-nano-12b-v2-vl:free";  // Vision text analysis
+const IMAGE_MODEL = "google/gemini-2.5-flash-image";        // Image generation
 
 const HEURISTIC_BOUNDING_BOXES: Record<string, { x: number; y: number; width: number; height: number }> = {
   sofa: { x: 10, y: 50, width: 40, height: 30 },
@@ -168,120 +166,103 @@ CRITICAL ARCHITECTURAL LOCK: Use the provided image as the ABSOLUTE structural t
 
     console.log("\nStarting AI tasks...");
 
-    // ── 1. Text Analysis ─ Robust Fallback Management ────────────────────
-    console.log("[OpenRouter] Starting Text Analysis with fallbacks...");
+    // ── 1. Text Analysis ─────────────────────────────────────────────────
+    console.log(`[OpenRouter] Starting Text Analysis via ${TEXT_MODEL}...`);
 
     let analysisResultText = "";
-    for (const model of VISION_MODELS) {
-      try {
-        console.log(`[OpenRouter] Attempting Text Analysis via ${model}...`);
-        const chatData = await openrouterChat(
-          model,
-          [
-            {
-              role: "user",
-              content: [
-                { type: "text", text: analysisPrompt },
-                { type: "image_url", image_url: { url: imageUrl } },
-              ],
-            },
-          ]
-        );
-        analysisResultText = chatData?.choices?.[0]?.message?.content ?? "";
-        if (analysisResultText) {
-          console.log(`[OpenRouter] Success: Text generated via ${model}.`);
-          break;
-        }
-      } catch (err: any) {
-        console.warn(`[OpenRouter] Warning: ${model} failed: ${err.message}`);
-        if (model === VISION_MODELS[VISION_MODELS.length - 1]) {
-           throw new Error(`Critical Text Analysis Failure: All models exhausted. Last error: ${err.message}`);
-        }
-        console.log("[OpenRouter] Retrying with fallback model...");
-      }
+    try {
+      const chatData = await openrouterChat(
+        TEXT_MODEL,
+        [
+          {
+            role: "user",
+            content: [
+              { type: "text", text: analysisPrompt },
+              { type: "image_url", image_url: { url: imageUrl } },
+            ],
+          },
+        ]
+      );
+      analysisResultText = chatData?.choices?.[0]?.message?.content ?? "";
+      if (!analysisResultText) throw new Error("Model returned empty text response.");
+      console.log(`[OpenRouter] Text Analysis complete.`);
+    } catch (err: any) {
+      console.error(`[OpenRouter] Text Analysis failed: ${err.message}`);
+      throw new Error(`Text analysis failed: ${err.message}`);
     }
 
-    // ── 2. Image Generation ─ Gemini 2.5 Flash Image ────────────────────
-    console.log("[OpenRouter] Generating redesign images via Gemini 2.5 Flash Image...");
+    // ── 2. Image Generation ───────────────────────────────────────────────
+    console.log(`[OpenRouter] Generating redesign images via ${IMAGE_MODEL}...`);
 
     const combinedDayPrompt = `${designPrompt}\n\nBased on your analysis of the original room:\n${analysisResultText.substring(0, 500)}`;
 
-    const generateImage = async (promptText: string, customImageUrl: string) => {
+    const generateImage = async (promptText: string, customImageUrl: string): Promise<string> => {
       let imageBase64 = "";
-      
-      for (const model of IMAGE_MODELS) {
-        try {
-          console.log(`[OpenRouter] Attempting Image Generation via ${model}...`);
-          const imageData = await openrouterChat(
-            model,
-            [
-              {
-                role: "system",
-                content: "You are a professional interior design image generation engine. Generate an image based on the provided photo and visual description. Output ONLY the generated image. Do NOT provide text reasoning, JSON, or parameters."
-              },
-              {
-                role: "user",
-                content: [
-                  { type: "text", text: `GENERATE REDESIGN: ${promptText}` },
-                  { type: "image_url", image_url: { url: customImageUrl } },
-                ],
-              },
-            ],
-            { modalities: ["image", "text"] }
-          );
+      try {
+        console.log(`[OpenRouter] Calling ${IMAGE_MODEL}...`);
+        const imageData = await openrouterChat(
+          IMAGE_MODEL,
+          [
+            {
+              role: "system",
+              content: "You are a professional interior design image generation engine. Generate an image based on the provided photo and visual description. Output ONLY the generated image. Do NOT provide text reasoning, JSON, or parameters."
+            },
+            {
+              role: "user",
+              content: [
+                { type: "text", text: `GENERATE REDESIGN: ${promptText}` },
+                { type: "image_url", image_url: { url: customImageUrl } },
+              ],
+            },
+          ],
+          { modalities: ["image", "text"] }
+        );
 
-          const message = imageData?.choices?.[0]?.message;
-          const content = message?.content;
-          const images = message?.images;
+        const message = imageData?.choices?.[0]?.message;
+        const content = message?.content;
+        const images = message?.images;
 
-          if (Array.isArray(images) && images.length > 0) {
-            for (const img of images) {
-              if (img?.type === "image_url" && img?.image_url?.url) {
-                const url = img.image_url.url;
-                imageBase64 = url.startsWith("data:") ? url : `data:image/jpeg;base64,${url}`;
-                break;
-              }
+        if (Array.isArray(images) && images.length > 0) {
+          for (const img of images) {
+            if (img?.type === "image_url" && img?.image_url?.url) {
+              const url = img.image_url.url;
+              imageBase64 = url.startsWith("data:") ? url : `data:image/jpeg;base64,${url}`;
+              break;
             }
-          }
-
-          if (!imageBase64 && Array.isArray(content)) {
-            for (const part of content) {
-              if (part?.type === "image_url" && part?.image_url?.url) {
-                const url = part.image_url.url;
-                imageBase64 = url.startsWith("data:") ? url : `data:image/jpeg;base64,${url}`;
-                break;
-              }
-            }
-          } else if (!imageBase64 && typeof content === "string" && content.trim()) {
-            const trimmed = content.trim();
-            const dataUrlMatch = trimmed.match(/data:image\/[a-zA-Z]*;base64,[^\s"']*/);
-            if (dataUrlMatch) {
-              imageBase64 = dataUrlMatch[0];
-            } else if (!trimmed.includes(" ") && trimmed.length > 1000) {
-              imageBase64 = `data:image/jpeg;base64,${trimmed}`;
-            }
-          }
-
-          if (imageBase64) {
-            console.log(`[OpenRouter] Success: Image extracted via ${model}.`);
-            return imageBase64;
-          } else {
-            throw new Error("Model returned successfully but no valid base64 image could be extracted.");
-          }
-        } catch (err: any) {
-          console.warn(`[OpenRouter] Warning: ${model} failed: ${err.message}`);
-          
-          // Short-circuit completely if it's an API limit / billing issue
-          if (err.message.includes("403") || err.message.includes("402") || err.message.includes("429") || err.message.includes("credit") || err.message.includes("limit")) {
-            throw new Error(`API_QUOTA_EXCEEDED: ${err.message}`);
-          }
-          
-          if (model === IMAGE_MODELS[IMAGE_MODELS.length - 1]) {
-             throw new Error(`Generation models exhausted. Last error: ${err.message}`);
           }
         }
+
+        if (!imageBase64 && Array.isArray(content)) {
+          for (const part of content) {
+            if (part?.type === "image_url" && part?.image_url?.url) {
+              const url = part.image_url.url;
+              imageBase64 = url.startsWith("data:") ? url : `data:image/jpeg;base64,${url}`;
+              break;
+            }
+          }
+        } else if (!imageBase64 && typeof content === "string" && content.trim()) {
+          const trimmed = content.trim();
+          const dataUrlMatch = trimmed.match(/data:image\/[a-zA-Z]*;base64,[^\s"']*/);
+          if (dataUrlMatch) {
+            imageBase64 = dataUrlMatch[0];
+          } else if (!trimmed.includes(" ") && trimmed.length > 1000) {
+            imageBase64 = `data:image/jpeg;base64,${trimmed}`;
+          }
+        }
+
+        if (!imageBase64) {
+          throw new Error(`${IMAGE_MODEL} returned a response but no image data could be extracted.`);
+        }
+
+        console.log(`[OpenRouter] Image generation successful.`);
+        return imageBase64;
+      } catch (err: any) {
+        const msg = err.message || "Unknown error";
+        if (msg.includes("403") || msg.includes("402") || msg.includes("429") || msg.includes("credit") || msg.includes("limit")) {
+          throw new Error(`Image generation quota exceeded on ${IMAGE_MODEL}. Please check your OpenRouter billing or increase the model limit. Details: ${msg}`);
+        }
+        throw new Error(`Image generation failed on ${IMAGE_MODEL}: ${msg}`);
       }
-      throw new Error("Unexpected end of generateImage function");
     };
 
     // Sequential generation to ensure consistency
@@ -353,72 +334,67 @@ app.post("/api/remediate", async (req, res) => {
     console.log(`[OpenRouter] Editing via Gemini... Prompt: ${promptOverrides}`);
 
     let imageBase64 = "";
-    for (const model of IMAGE_MODELS) {
-      try {
-        console.log(`[OpenRouter] Remediation attempt via ${model}...`);
-        const imageData = await openrouterChat(
-          model, 
-          [
-            {
-              role: "system",
-              content: "You are a professional interior design image generation engine. Generate the redesign image based on the provided photo and modification description. Output ONLY the generated image. Do NOT provide text reasoning, JSON, or parameters."
-            },
-            { 
-              role: "user", 
-              content: [
-                { type: "text", text: `REMEDIATE RENDER: Modify the provided interior design by applying these requested changes: "${promptOverrides}". 
-                CRITICAL: 
-                1. Use the provided image as the EXACT structural template. 
-                2. High-Fidelity Preservation: Maintain the current furniture layout, flooring, and architecture unless explicitly asked to change them.
-                3. Incremental Edit: Apply ONLY the requested changes (e.g., if asked for wall color, only change the walls). 
-                4. Realistic Output: Professional 8k interior visualization.` }, 
-                { type: "image_url", image_url: { url: imageUrl } }
-              ]
-            }
-          ],
-          { modalities: ["image", "text"] }
-        );
-        
-        const message = imageData?.choices?.[0]?.message;
-        const content = message?.content;
-        const images = message?.images;
+    try {
+      console.log(`[OpenRouter] Remediation attempt via ${IMAGE_MODEL}...`);
+      const imageData = await openrouterChat(
+        IMAGE_MODEL, 
+        [
+          {
+            role: "system",
+            content: "You are a professional interior design image generation engine. Generate the redesign image based on the provided photo and modification description. Output ONLY the generated image. Do NOT provide text reasoning, JSON, or parameters."
+          },
+          { 
+            role: "user", 
+            content: [
+              { type: "text", text: `REMEDIATE RENDER: Modify the provided interior design by applying these requested changes: "${promptOverrides}". 
+              CRITICAL: 
+              1. Use the provided image as the EXACT structural template. 
+              2. High-Fidelity Preservation: Maintain the current furniture layout, flooring, and architecture unless explicitly asked to change them.
+              3. Incremental Edit: Apply ONLY the requested changes (e.g., if asked for wall color, only change the walls). 
+              4. Realistic Output: Professional 8k interior visualization.` }, 
+              { type: "image_url", image_url: { url: imageUrl } }
+            ]
+          }
+        ],
+        { modalities: ["image", "text"] }
+      );
+      
+      const message = imageData?.choices?.[0]?.message;
+      const content = message?.content;
+      const images = message?.images;
 
-        if (Array.isArray(images) && images.length > 0) {
-          for (const img of images) {
-            if (img?.type === "image_url" && img?.image_url?.url) {
-              const url = img.image_url.url;
-              imageBase64 = url.startsWith("data:") ? url : `data:image/jpeg;base64,${url}`;
-              break;
-            }
+      if (Array.isArray(images) && images.length > 0) {
+        for (const img of images) {
+          if (img?.type === "image_url" && img?.image_url?.url) {
+            const url = img.image_url.url;
+            imageBase64 = url.startsWith("data:") ? url : `data:image/jpeg;base64,${url}`;
+            break;
           }
         }
-
-        if (!imageBase64 && Array.isArray(content)) {
-          for (const part of content) {
-            if (part?.type === "image_url" && part?.image_url?.url) {
-              const url = part.image_url.url;
-              imageBase64 = url.startsWith("data:") ? url : `data:image/jpeg;base64,${url}`;
-              break;
-            }
-          }
-        } else if (!imageBase64 && typeof content === "string" && content.trim()) {
-            const trimmed = content.trim();
-            const dataUrlMatch = trimmed.match(/data:image\/[a-zA-Z]*;base64,[^\s"']*/);
-            if (dataUrlMatch) {
-              imageBase64 = dataUrlMatch[0];
-            } else if (!trimmed.includes(" ") && trimmed.length > 1000) {
-              imageBase64 = `data:image/jpeg;base64,${trimmed}`;
-            }
-        }
-
-        if (imageBase64) {
-          console.log(`[OpenRouter] Remediation Success via ${model}.`);
-          break;
-        }
-      } catch (err: any) {
-        console.warn(`[OpenRouter] Warning: Remediation ${model} failed: ${err.message}`);
-        if (model === IMAGE_MODELS[IMAGE_MODELS.length - 1]) throw err;
       }
+
+      if (!imageBase64 && Array.isArray(content)) {
+        for (const part of content) {
+          if (part?.type === "image_url" && part?.image_url?.url) {
+            const url = part.image_url.url;
+            imageBase64 = url.startsWith("data:") ? url : `data:image/jpeg;base64,${url}`;
+            break;
+          }
+        }
+      } else if (!imageBase64 && typeof content === "string" && content.trim()) {
+        const trimmed = content.trim();
+        const dataUrlMatch = trimmed.match(/data:image\/[a-zA-Z]*;base64,[^\s"']*/); 
+        if (dataUrlMatch) {
+          imageBase64 = dataUrlMatch[0];
+        } else if (!trimmed.includes(" ") && trimmed.length > 1000) {
+          imageBase64 = `data:image/jpeg;base64,${trimmed}`;
+        }
+      }
+
+      if (!imageBase64) throw new Error(`${IMAGE_MODEL} returned no image data for remediation.`);
+      console.log(`[OpenRouter] Remediation successful via ${IMAGE_MODEL}.`);
+    } catch (err: any) {
+      throw new Error(`Remediation failed on ${IMAGE_MODEL}: ${err.message}`);
     }
 
     if (!imageBase64) throw new Error("Failed to extract remediated base64 payload");
@@ -441,47 +417,37 @@ app.post("/api/detect-objects", async (req, res) => {
 
     const imageUrl = redesignedImage.startsWith("data:") ? redesignedImage : `data:image/jpeg;base64,${redesignedImage}`;
 
-    // 1. Vision Detection via Models with Fallbacks
+    // 1. Vision Detection via TEXT_MODEL
     const visionPrompt = "Look at this interior design image. Provide a JSON array of all furniture and decor items you see. For each item include: name, color, style, and a boundingBox object with 'x', 'y', 'width', 'height' representing the object's position and size in percentages (0-100) relative to the image dimensions. Return ONLY the JSON array.";
 
     let visionDetected: any[] = [];
-    for (const model of VISION_MODELS) {
-      try {
-        console.log(`[OpenRouter] Starting Vision Detection via ${model}...`);
-        const visionResult = await openrouterChat(
-          model,
-          [
-            {
-              role: "user",
-              content: [
-                { type: "text", text: visionPrompt },
-                { type: "image_url", image_url: { url: imageUrl } },
-              ],
-            },
-          ]
-        );
-        
-        const content = visionResult?.choices?.[0]?.message?.content || "[]";
-        // Handle cases where AI wraps JSON in markdown blocks
-        const jsonStr = content.includes("```json") 
-          ? content.split("```json")[1].split("```")[0].trim()
-          : content.includes("```") 
-            ? content.split("```")[1].split("```")[0].trim()
-            : content.trim();
-        
-        const parsed = JSON.parse(jsonStr);
-        visionDetected = Array.isArray(parsed) ? parsed : (parsed.items || []);
-        
-        if (visionDetected.length > 0) {
-          console.log(`[SAM] Vision Success via ${model}.`);
-          break;
-        }
-      } catch (err: any) {
-        console.warn(`[SAM] Warning: Vision detection failed on ${model}: ${err.message}`);
-        if (model === VISION_MODELS[VISION_MODELS.length - 1]) {
-           console.log("[SAM] All vision models failed, falling back to text analysis only.");
-        }
-      }
+    try {
+      console.log(`[SAM] Starting Vision Detection via ${TEXT_MODEL}...`);
+      const visionResult = await openrouterChat(
+        TEXT_MODEL,
+        [
+          {
+            role: "user",
+            content: [
+              { type: "text", text: visionPrompt },
+              { type: "image_url", image_url: { url: imageUrl } },
+            ],
+          },
+        ]
+      );
+      
+      const content = visionResult?.choices?.[0]?.message?.content || "[]";
+      const jsonStr = content.includes("```json") 
+        ? content.split("```json")[1].split("```")[0].trim()
+        : content.includes("```") 
+          ? content.split("```")[1].split("```")[0].trim()
+          : content.trim();
+      
+      const parsed = JSON.parse(jsonStr);
+      visionDetected = Array.isArray(parsed) ? parsed : (parsed.items || []);
+      console.log(`[SAM] Vision Success via ${TEXT_MODEL}.`);
+    } catch (err: any) {
+      console.warn(`[SAM] Vision detection failed: ${err.message}. Falling back to text analysis only.`);
     }
 
     // 2. Text-based Keyword Extraction (Fallback/Supplementary)

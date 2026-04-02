@@ -116,7 +116,7 @@ export default function App() {
     // Simulate the two-step backend process timing for UX
     const timer = setTimeout(() => {
       setResult(prev => ({ ...prev, loadingMessage: 'Generating design...' }));
-    }, 15000); 
+    }, 15000);
 
     const analysisPrompt = `Expert AI Interior Designer: Analyze this ${roomType} in ${style} style. 
     Context: The room faces ${direction}, is located in ${location}, and has a budget of ₹${budget}. 

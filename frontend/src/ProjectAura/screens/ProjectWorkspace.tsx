@@ -113,6 +113,12 @@ export default function ProjectWorkspace({ onBack, apiResult, budget = 4500, car
     }
   };
 
+  const formatImageSrc = (src?: string | null) => {
+    if (!src) return "https://images.unsplash.com/photo-1600210492486-724fe5c67fb0?w=1200&h=800&fit=crop";
+    if (src.startsWith('http') || src.startsWith('data:')) return src;
+    return `data:image/jpeg;base64,${src}`;
+  };
+
   const getRenderImageStyle = () => {
     // We only rely on CSS fallback if real nighttime rendering payload is missing
     if (renderMode === 'nighttime' && !apiResult?.nighttimeImage) {
@@ -122,9 +128,9 @@ export default function ProjectWorkspace({ onBack, apiResult, budget = 4500, car
   };
 
   const getRenderSrc = () => {
-    if (renderMode === 'original') return apiResult?.image || "https://images.unsplash.com/photo-1600210492486-724fe5c67fb0?w=1200&h=800&fit=crop";
-    if (renderMode === 'nighttime' && apiResult?.nighttimeImage) return apiResult.nighttimeImage;
-    return activeImage || "https://images.unsplash.com/photo-1600210492486-724fe5c67fb0?w=1200&h=800&fit=crop";
+    if (renderMode === 'original') return formatImageSrc(apiResult?.image);
+    if (renderMode === 'nighttime' && apiResult?.nighttimeImage) return formatImageSrc(apiResult.nighttimeImage);
+    return formatImageSrc(activeImage);
   };
 
   let displayProducts = apiResult?.products && apiResult.products.length > 0 ? apiResult.products : products;
@@ -527,11 +533,11 @@ export default function ProjectWorkspace({ onBack, apiResult, budget = 4500, car
               </div>
               <div className="flex flex-col md:flex-row gap-4 mb-2">
                 <div className="flex-1 aspect-video rounded-xl overflow-hidden relative border border-gray-100">
-                  <img src={apiResult?.image || ""} alt="Before" className="w-full h-full object-cover" crossOrigin="anonymous" />
+                  <img src={formatImageSrc(apiResult?.image)} alt="Before" className="w-full h-full object-cover" crossOrigin="anonymous" />
                   <div className="absolute top-4 left-4 bg-black/60 text-white px-4 py-1.5 rounded-full text-xs font-bold uppercase tracking-widest backdrop-blur-sm">Before</div>
                 </div>
                 <div className="flex-1 aspect-video rounded-xl overflow-hidden relative border border-[#4A6D50]/30">
-                  <img src={activeImage || ""} alt="After" className="w-full h-full object-cover" crossOrigin="anonymous" />
+                  <img src={formatImageSrc(activeImage)} alt="After" className="w-full h-full object-cover" crossOrigin="anonymous" />
                   <div className="absolute top-4 left-4 bg-[#4A6D50] text-white px-4 py-1.5 rounded-full text-xs font-bold uppercase tracking-widest shadow-sm">After</div>
                 </div>
               </div>
