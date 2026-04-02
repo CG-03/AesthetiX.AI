@@ -173,6 +173,8 @@ export default function AuraApp() {
       vastu: settings.defaultDirection || 'North',
       ownership: 'own',
       location: settings.defaultLocation || 'Mumbai, India',
+      lat: settings.defaultLat || null,
+      lng: settings.defaultLng || null,
       budget: settings.defaultBudget || 4500,
       style: settings.defaultStyle || 'Modern Minimalist',
       roomType: settings.defaultRoom || 'Living Room',
@@ -220,6 +222,8 @@ export default function AuraApp() {
           ownership: designData.ownership,
           direction: designData.vastu,
           location: designData.location,
+          lat: designData.lat,
+          lng: designData.lng,
           pinterestUrl: ''
         }),
       });
@@ -314,6 +318,7 @@ export default function AuraApp() {
           onNext={() => setCurrentRoute('step3')}
           onBack={() => setCurrentRoute('step1')}
           onDataChange={(data) => setDesignData(prev => ({ ...prev, ...data }))}
+          showToast={showToast}
         />
       )}
 

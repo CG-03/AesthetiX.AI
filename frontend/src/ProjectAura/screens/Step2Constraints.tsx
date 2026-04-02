@@ -1,53 +1,130 @@
-import React, { useState } from 'react';
-import { MapPin, Navigation, ArrowLeft, ArrowRight } from 'lucide-react';
+import React, { useState, useEffect, useRef } from 'react';
+import { MapPin, Navigation, ArrowLeft, ArrowRight, Search, Loader2 } from 'lucide-react';
 import TopNavigation from '../components/TopNavigation';
 import StepIndicator from '../components/StepIndicator';
 
 interface Step2ConstraintsProps {
   onNext?: () => void;
   onBack?: () => void;
-  onDataChange?: (data: { ownership: string; location: string; budget: number }) => void;
+  onDataChange?: (data: { 
+    ownership: string; 
+    location: string; 
+    lat: number | null; 
+    lng: number | null; 
+    budget: number 
+  }) => void;
+  showToast?: (message: string, type: 'success' | 'info') => void;
 }
 
-export default function Step2Constraints({ onNext, onBack, onDataChange }: Step2ConstraintsProps) {
+export default function Step2Constraints({ onNext, onBack, onDataChange, showToast }: Step2ConstraintsProps) {
   const [ownership, setOwnership] = useState<'own' | 'rent'>('own');
   const [location, setLocation] = useState('');
+  const [lat, setLat] = useState<number | null>(null);
+  const [lng, setLng] = useState<number | null>(null);
   const [budget, setBudget] = useState(4500);
   const [isDetecting, setIsDetecting] = useState(false);
+  
+  // Autocomplete states
+  const [suggestions, setSuggestions] = useState<any[]>([]);
+  const [showDropdown, setShowDropdown] = useState(false);
+  const [isSearching, setIsSearching] = useState(false);
+  const dropdownRef = useRef<HTMLDivElement>(null);
 
   const minBudget = 500;
   const maxBudget = 10000;
+
+  // Debounced Autocomplete Search
+  useEffect(() => {
+    if (!location || location.length < 3 || isDetecting) {
+      setSuggestions([]);
+      setShowDropdown(false);
+      return;
+    }
+
+    const timer = setTimeout(async () => {
+      setIsSearching(true);
+      try {
+        const res = await fetch(`https://nominatim.openstreetmap.org/search?q=${encodeURIComponent(location)}&format=json&countrycodes=in&limit=5`);
+        const data = await res.json();
+        setSuggestions(data);
+        setShowDropdown(true);
+      } catch (err) {
+        console.error("Search error", err);
+      } finally {
+        setIsSearching(false);
+      }
+    }, 400);
+
+    return () => clearTimeout(timer);
+  }, [location, isDetecting]);
+
+  // Handle Click Outside Dropdown
+  useEffect(() => {
+    const handleClickOutside = (event: MouseEvent) => {
+      if (dropdownRef.current && !dropdownRef.current.contains(event.target as Node)) {
+        setShowDropdown(false);
+      }
+    };
+    document.addEventListener('mousedown', handleClickOutside);
+    return () => document.removeEventListener('mousedown', handleClickOutside);
+  }, []);
 
   const handleDetectLocation = () => {
     setIsDetecting(true);
     if ("geolocation" in navigator) {
       navigator.geolocation.getCurrentPosition(
-        (position) => {
-          setTimeout(() => {
-            const mockedLocation = "Mumbai, Maharashtra";
-            setLocation(mockedLocation);
-            onDataChange?.({ ownership, location: mockedLocation, budget });
+        async (position) => {
+          const { latitude, longitude } = position.coords;
+          setLat(latitude);
+          setLng(longitude);
+          
+          try {
+            const res = await fetch(`https://nominatim.openstreetmap.org/reverse?lat=${latitude}&lon=${longitude}&format=json`);
+            const data = await res.json();
+            
+            const city = data.address.city || data.address.town || data.address.village || "";
+            const state = data.address.state || "";
+            const displayName = city && state ? `${city}, ${state}` : data.display_name.split(',').slice(0, 2).join(', ');
+            
+            setLocation(displayName);
+            onDataChange?.({ ownership, location: displayName, lat: latitude, lng: longitude, budget });
+            showToast?.(`Location detected: ${displayName}`, 'success');
+          } catch (err) {
+            console.error("Reverse geocoding error", err);
+            showToast?.("Location access granted, but failed to resolve address.", 'info');
+          } finally {
             setIsDetecting(false);
-          }, 1000);
+          }
         },
         (error) => {
-          console.error("Error detecting location", error);
-          setTimeout(() => {
-            setLocation("New York, USA");
-            onDataChange?.({ ownership, location: "New York, USA", budget });
-            setIsDetecting(false);
-          }, 500);
-        }
+          console.error("Geolocation error", error);
+          showToast?.("Location access denied. Please enter manually.", 'info');
+          setIsDetecting(false);
+        },
+        { timeout: 10000 }
       );
     } else {
+      showToast?.("Geolocation not supported by your browser.", 'info');
       setIsDetecting(false);
     }
+  };
+
+  const handleSelectSuggestion = (sug: any) => {
+    const displayName = sug.display_name.split(',').slice(0, 2).join(', ');
+    setLocation(displayName);
+    const newLat = parseFloat(sug.lat);
+    const newLng = parseFloat(sug.lon);
+    setLat(newLat);
+    setLng(newLng);
+    onDataChange?.({ ownership, location: displayName, lat: newLat, lng: newLng, budget });
+    setShowDropdown(false);
+    setSuggestions([]);
   };
 
   const handleBudgetChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const val = Number(e.target.value);
     setBudget(val);
-    onDataChange?.({ ownership, location, budget: val });
+    onDataChange?.({ ownership, location, lat, lng, budget: val });
   };
 
   const pct = ((budget - minBudget) / (maxBudget - minBudget)) * 100;
@@ -72,7 +149,7 @@ export default function Step2Constraints({ onNext, onBack, onDataChange }: Step2
             <p className="text-[10px] font-bold tracking-widest uppercase text-gray-500 mb-4">Residential Status</p>
             <div className="grid grid-cols-2 gap-4">
               <button
-                onClick={() => { setOwnership('own'); onDataChange?.({ ownership: 'own', location, budget }); }}
+                onClick={() => { setOwnership('own'); onDataChange?.({ ownership: 'own', location, lat, lng, budget }); }}
                 className={`flex flex-col items-center justify-center gap-2 py-8 rounded-2xl border-2 font-semibold text-sm transition-all ${
                   ownership === 'own'
                     ? 'bg-[#4A6D50] text-white border-[#4A6D50] shadow-lg shadow-[#4A6D50]/20'
@@ -85,7 +162,7 @@ export default function Step2Constraints({ onNext, onBack, onDataChange }: Step2
                 I own
               </button>
               <button
-                onClick={() => { setOwnership('rent'); onDataChange?.({ ownership: 'rent', location, budget }); }}
+                onClick={() => { setOwnership('rent'); onDataChange?.({ ownership: 'rent', location, lat, lng, budget }); }}
                 className={`flex flex-col items-center justify-center gap-2 py-8 rounded-2xl border-2 font-semibold text-sm transition-all ${
                   ownership === 'rent'
                     ? 'bg-[#4A6D50] text-white border-[#4A6D50] shadow-lg shadow-[#4A6D50]/20'
@@ -101,15 +178,18 @@ export default function Step2Constraints({ onNext, onBack, onDataChange }: Step2
           </div>
 
           {/* Location */}
-          <div>
+          <div className="relative" ref={dropdownRef}>
             <p className="text-[10px] font-bold tracking-widest uppercase text-gray-500 mb-4">Preferred Location</p>
             <div className="relative">
-              <MapPin size={16} className="absolute left-4 top-1/2 -translate-y-1/2 text-gray-400" />
+              <MapPin size={16} className={`absolute left-4 top-1/2 -translate-y-1/2 transition-colors ${isSearching ? 'text-[#4A6D50] animate-pulse' : 'text-gray-400'}`} />
               <input
                 type="text"
                 value={location}
-                onChange={(e) => { setLocation(e.target.value); onDataChange?.({ ownership, location: e.target.value, budget }); }}
-                placeholder="Search city, neighborhood, or zip code"
+                onChange={(e) => { 
+                  setLocation(e.target.value); 
+                  onDataChange?.({ ownership, location: e.target.value, lat: null, lng: null, budget }); 
+                }}
+                placeholder="Search city in India (e.g. Mumbai)"
                 className="w-full bg-[#F8F8F7] border border-gray-200 rounded-2xl pl-10 pr-28 py-3.5 text-sm text-gray-700 placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-[#4A6D50]/30 focus:border-[#4A6D50] transition-all"
               />
               <button 
@@ -118,13 +198,42 @@ export default function Step2Constraints({ onNext, onBack, onDataChange }: Step2
                 className="absolute right-2 top-1/2 -translate-y-1/2 flex items-center gap-1.5 bg-[#F0F0EE] text-gray-600 text-xs font-semibold px-3 py-1.5 rounded-xl hover:bg-gray-200 transition-colors disabled:opacity-50"
               >
                 {isDetecting ? (
-                  <div className="w-3 h-3 border-2 border-gray-400 border-t-transparent rounded-full animate-spin" />
+                  <Loader2 size={12} className="animate-spin text-[#4A6D50]" />
                 ) : (
                   <Navigation size={12} /> 
                 )}
                 {isDetecting ? 'Detecting...' : 'Detect'}
               </button>
             </div>
+
+            {/* Suggestions Dropdown */}
+            {showDropdown && (suggestions.length > 0) && (
+              <div className="absolute z-50 left-0 right-0 mt-2 bg-white border border-gray-100 rounded-2xl shadow-xl overflow-hidden animate-in fade-in slide-in-from-top-2 duration-200">
+                {suggestions.map((sug, idx) => (
+                  <button
+                    key={idx}
+                    onClick={() => handleSelectSuggestion(sug)}
+                    className="w-full flex items-center gap-3 px-5 py-4 text-left hover:bg-gray-50 transition-colors border-b border-gray-50 last:border-0 group"
+                  >
+                    <Search size={14} className="text-gray-300 group-hover:text-[#4A6D50] transition-colors" />
+                    <div>
+                      <p className="text-sm font-bold text-gray-800">
+                        {sug.display_name.split(',')[0]}
+                      </p>
+                      <p className="text-[10px] text-gray-400 font-medium uppercase tracking-wider">
+                        {sug.display_name.split(',').slice(1, 3).join(', ')}
+                      </p>
+                    </div>
+                  </button>
+                ))}
+              </div>
+            )}
+            
+            {showDropdown && suggestions.length === 0 && location.length >= 3 && !isSearching && !isDetecting && (
+              <div className="absolute z-50 left-0 right-0 mt-2 bg-white border border-gray-100 rounded-2xl shadow-xl p-6 text-center animate-in fade-in slide-in-from-top-2">
+                <p className="text-sm font-medium text-gray-400 italic">No results found for "{location}"</p>
+              </div>
+            )}
           </div>
 
           {/* Budget Slider */}
