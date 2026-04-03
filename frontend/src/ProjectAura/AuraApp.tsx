@@ -269,7 +269,9 @@ export default function AuraApp() {
           budget: designData.budget,
           ownership: designData.ownership,
           direction: designData.vastu,
-          text: result.text
+          text: result.text,
+          image: result.image,
+          redesignedImage: result.redesignedImage
         };
         localStorage.setItem('vastu_saved_designs', JSON.stringify([newDesign, ...parsedHistory]));
       } catch (e) {
@@ -308,15 +310,15 @@ export default function AuraApp() {
   const handleOpenSavedDesign = (design: any) => {
     setApiResult({
       text: design.text || "",
-      image: "", 
-      redesignedImage: "", 
+      image: design.image || "", 
+      redesignedImage: design.redesignedImage || "", 
       nighttimeImage: null,
       products: [],
       depthMapImage: null
     });
     
     setDesignData({
-      image: null,
+      image: design.image || null,
       vastu: design.direction || 'North',
       ownership: design.ownership || 'own',
       location: design.location || 'Mumbai, India',
@@ -392,7 +394,7 @@ export default function AuraApp() {
           onBack={() => setCurrentRoute('dashboard')} 
           apiResult={apiResult}
           budget={designData.budget}
-          location={designData.location}
+          geoCity={designData.location}
           cartItems={cartItems}
           onAddToCart={addToCart}
           onOpenCart={() => setIsCartOpen(true)}

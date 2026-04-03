@@ -25,7 +25,7 @@ interface ProjectWorkspaceProps {
   onOpenCart: () => void;
   detectedObjects?: any[];
   isDetectingObjects?: boolean;
-  location?: string;
+  geoCity?: string;
 }
 
 const products = [
@@ -35,7 +35,7 @@ const products = [
   { id: 4, name: 'Earthen Triptych Art', brand: 'Vastu AI Fine Arts', price: 320, image: 'https://images.unsplash.com/photo-1579783902614-a3fb3927b6a5?w=400&h=300&fit=crop' },
 ];
 
-export default function ProjectWorkspace({ onBack, apiResult, budget = 4500, cartItems, onAddToCart, onOpenCart, detectedObjects = [], isDetectingObjects = false, location }: ProjectWorkspaceProps) {
+export default function ProjectWorkspace({ onBack, apiResult, budget = 4500, cartItems, onAddToCart, onOpenCart, detectedObjects = [], isDetectingObjects = false, geoCity }: ProjectWorkspaceProps) {
   const [renderMode, setRenderMode] = useState<'original' | 'daylight' | 'nighttime'>('daylight');
   const [costMode, setCostMode] = useState<'retail' | 'custom'>('retail');
   const [selectedProduct, setSelectedProduct] = useState<any>(null);
@@ -125,13 +125,13 @@ export default function ProjectWorkspace({ onBack, apiResult, budget = 4500, car
     e.preventDefault();
     e.stopPropagation();
     
-    setSelectedObjectId(obj.id);
-    setActiveLabel(obj);
-    setShowProductPopup(true);
-    setIsSearchingProduct(true);
-    setSearchResult(null);
-
     try {
+      setSelectedObjectId(obj.id);
+      setActiveLabel(obj);
+      setShowProductPopup(true);
+      setIsSearchingProduct(true);
+      setSearchResult(null);
+
       const res = await fetch("/api/search-products", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
@@ -140,13 +140,14 @@ export default function ProjectWorkspace({ onBack, apiResult, budget = 4500, car
           color: obj.color,
           style: obj.style,
           material: obj.material || "standard",
-          location: location || "India"
+          location: geoCity || "India"
         })
       });
       const data = await res.json();
       setSearchResult(data);
-    } catch (err) {
-      console.error("Search failed:", err);
+    } catch (err: any) {
+      console.error("Label Click/Search failed:", err);
+      alert(`Label Click Error: ${err.message}`);
     } finally {
       setIsSearchingProduct(false);
     }
@@ -177,11 +178,13 @@ export default function ProjectWorkspace({ onBack, apiResult, budget = 4500, car
   if (selectedObjectId) {
     const obj = detectedObjects.find(o => o.id === selectedObjectId);
     if (obj) {
-      const keywords = obj.label.toLowerCase().split(' ');
-      displayProducts = displayProducts.filter(p =>
-        p.name.toLowerCase().includes(obj.category.toLowerCase()) ||
-        keywords.some(k => k.length > 3 && p.name.toLowerCase().includes(k))
-      );
+      const keywords = (obj.label || "").toLowerCase().split(' ');
+      const category = (obj.category || "").toLowerCase();
+      displayProducts = displayProducts.filter(p => {
+        const pName = (p.name || "").toLowerCase();
+        return (category && pName.includes(category)) ||
+               keywords.some((k: string) => k.length > 3 && pName.includes(k));
+      });
 
       if (displayProducts.length === 0) {
         displayProducts = [{
@@ -291,6 +294,7 @@ export default function ProjectWorkspace({ onBack, apiResult, budget = 4500, car
                         }}
                       >
                         <button
+                          type="button"
                           onClick={(e) => handleLabelClick(e, obj)}
                           className={`group flex items-center gap-2 px-4 py-2 rounded-full border-2 transition-all duration-300 shadow-lg whitespace-nowrap
                             ${isSelected
@@ -516,7 +520,7 @@ export default function ProjectWorkspace({ onBack, apiResult, budget = 4500, car
       </main>
 
       {/* Product Discovery Popup */}
-      {showProductPopup && activeLabel && (
+      {showProductPopup && activeLabel && activeLabel.id && (
         <div className="fixed inset-0 z-[110] flex items-center justify-center p-4 bg-black/60 backdrop-blur-md transition-all animate-in fade-in duration-300" onClick={() => setShowProductPopup(false)}>
           <div className="bg-white dark:bg-[#1A1816] rounded-[2.5rem] w-full max-w-2xl overflow-hidden shadow-2xl relative border border-gray-100 dark:border-[#3A3632] animate-in zoom-in-95 duration-300" onClick={e => e.stopPropagation()}>
             <button
