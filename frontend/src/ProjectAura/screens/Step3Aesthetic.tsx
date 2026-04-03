@@ -11,7 +11,7 @@ interface Step3AestheticProps {
 }
 
 export default function Step3Aesthetic({ onBack, onGenerate, onDataChange, isGenerating }: Step3AestheticProps) {
-  const [activePill, setActivePill] = useState('Minimalist');
+  const [activePill, setActivePill] = useState('Modern');
   const [referenceImages, setReferenceImages] = useState<string[]>([]);
   const fileInputRef = React.useRef<HTMLInputElement>(null);
 
@@ -42,11 +42,15 @@ export default function Step3Aesthetic({ onBack, onGenerate, onDataChange, isGen
   };
 
   const pills = [
+    'Modern',
+    'Scandinavian',
     'Minimalist',
     'Bohemian',
-    'Mid-Century Modern',
+    'Traditional Indian',
+    'Luxury Contemporary',
     'Industrial',
-    'Traditional'
+    'Japandi',
+    'Coastal'
   ];
 
   const triggerFileInput = () => {
@@ -80,32 +84,32 @@ export default function Step3Aesthetic({ onBack, onGenerate, onDataChange, isGen
 
   if (isGenerating) {
     return (
-      <div className="min-h-screen bg-[#FBFBF9] font-sans text-[#1F1F1F] flex flex-col items-center justify-center relative overflow-hidden animate-in fade-in duration-500">
+      <div className="min-h-screen bg-[#FBFBF9] dark:bg-[#0F0E0D] font-sans text-[#1F1F1F] dark:text-[#F5F0E8] flex flex-col items-center justify-center relative overflow-hidden animate-in fade-in duration-500 transition-colors">
         {/* Subtle animated background shapes */}
-        <div className="absolute top-[10%] left-[20%] w-[500px] h-[500px] bg-[#4A6D50]/5 rounded-full blur-[100px] animate-pulse" />
-        <div className="absolute bottom-[10%] right-[10%] w-[400px] h-[400px] bg-[#A89F95]/10 rounded-full blur-[100px] animate-pulse delay-1000" />
+        <div className="absolute top-[10%] left-[20%] w-[500px] h-[500px] bg-[#B3541E]/5 rounded-full blur-[100px] animate-pulse" />
+        <div className="absolute bottom-[10%] right-[10%] w-[400px] h-[400px] bg-[#2E2B28]/10 rounded-full blur-[100px] animate-pulse delay-1000" />
         
         <div className="z-10 flex flex-col items-center max-w-md w-full px-8 animate-in slide-in-from-bottom-10 duration-700">
-          <div className="w-24 h-24 bg-white rounded-full shadow-[0_8px_30px_rgb(0,0,0,0.08)] flex items-center justify-center mb-10 relative">
-            <div className="absolute inset-0 rounded-full border-4 border-gray-100" />
-            <div className="absolute inset-0 rounded-full border-4 border-[#4A6D50] border-t-transparent animate-spin" />
-            <Sparkles className="text-[#4A6D50] w-10 h-10 animate-pulse" />
+          <div className="w-24 h-24 bg-white dark:bg-[#1A1816] rounded-full shadow-[0_8px_30px_rgb(0,0,0,0.08)] flex items-center justify-center mb-10 relative">
+            <div className="absolute inset-0 rounded-full border-4 border-gray-100 dark:border-[#3A3632]" />
+            <div className="absolute inset-0 rounded-full border-4 border-[#B3541E] border-t-transparent animate-spin" />
+            <Sparkles className="text-[#B3541E] w-10 h-10 animate-pulse" />
           </div>
 
-          <h2 className="text-3xl font-bold tracking-tight mb-4 text-center text-[#1F1F1F]">
+          <h2 className="text-3xl font-bold tracking-tight mb-4 text-center text-[#1F1F1F] dark:text-[#F5F0E8]">
             Crafting your space
           </h2>
           
           <div className="h-8 mb-10 flex items-center justify-center">
-            <p className="text-gray-500 font-medium text-[15px] animate-in fade-in slide-in-from-bottom-2 duration-500" key={loadingStage}>
+            <p className="text-gray-500 dark:text-[#A89F94] font-medium text-[15px] animate-in fade-in slide-in-from-bottom-2 duration-500" key={loadingStage}>
               {loadingStages[loadingStage]}
             </p>
           </div>
 
           {/* Progress bar */}
-          <div className="w-full bg-gray-200 h-2.5 rounded-full overflow-hidden shadow-inner">
+          <div className="w-full bg-gray-200 dark:bg-[#242220] h-2.5 rounded-full overflow-hidden shadow-inner">
             <div 
-              className="h-full bg-[#4A6D50] rounded-full transition-all duration-1000 ease-out relative overflow-hidden"
+              className="h-full bg-[#B3541E] rounded-full transition-all duration-1000 ease-out relative overflow-hidden"
               style={{ width: `${Math.min(100, ((loadingStage + 1) / loadingStages.length) * 100)}%` }}
             >
                <div className="absolute inset-0 bg-white/20 w-full animate-[shimmer_2s_infinite] -translate-x-full" style={{ backgroundImage: 'linear-gradient(90deg, transparent, rgba(255,255,255,0.4), transparent)' }} />
@@ -121,7 +125,7 @@ export default function Step3Aesthetic({ onBack, onGenerate, onDataChange, isGen
   }
 
   return (
-    <div className="min-h-screen bg-[#FBFBF9] font-sans text-[#1F1F1F] flex flex-col">
+    <div className="min-h-screen bg-[#FBFBF9] dark:bg-[#0F0E0D] font-sans text-[#1F1F1F] dark:text-[#F5F0E8] flex flex-col transition-colors duration-300">
       <TopNavigation variant="onboarding" />
 
       <main className="flex-1 w-full max-w-4xl mx-auto px-6 py-12 flex flex-col items-center">
@@ -129,7 +133,7 @@ export default function Step3Aesthetic({ onBack, onGenerate, onDataChange, isGen
 
         <div className="text-center max-w-xl mx-auto mb-16 space-y-4">
           <h1 className="text-4xl md:text-5xl font-bold tracking-tight flex items-center justify-center gap-3">
-            <Sparkles className="text-[#4A6D50] w-8 h-8 md:w-10 md:h-10" /> Define your aesthetic.
+            <Sparkles className="text-[#B3541E] w-8 h-8 md:w-10 md:h-10" /> Define your aesthetic.
           </h1>
           <p className="text-gray-500 text-[15px] leading-relaxed">
             Let's curate your vision. Connect your inspiration sources to help Aura
@@ -138,7 +142,7 @@ export default function Step3Aesthetic({ onBack, onGenerate, onDataChange, isGen
         </div>
 
         {/* Pinterest Button */}
-        <button className="bg-white hover:bg-gray-50 transition-colors shadow-sm border border-gray-100 rounded-2xl py-4 px-8 flex items-center gap-3 font-semibold text-[#1F1F1F] text-sm mb-12">
+        <button className="bg-white dark:bg-[#1A1816] hover:bg-gray-50 dark:hover:bg-[#242220] transition-colors shadow-sm border border-gray-100 dark:border-[#3A3632] rounded-2xl py-4 px-8 flex items-center gap-3 font-semibold text-[#1F1F1F] dark:text-[#F5F0E8] text-sm mb-12">
           <div className="w-6 h-6 bg-[#E60023] rounded-full flex items-center justify-center text-white font-bold text-xs">
             {/* Simple CSS Pinterest logo approximation */}
             P
@@ -148,9 +152,9 @@ export default function Step3Aesthetic({ onBack, onGenerate, onDataChange, isGen
 
         {/* Separator */}
         <div className="w-full max-w-lg flex items-center gap-4 mb-12 opacity-50">
-          <div className="flex-1 h-[1px] bg-gray-300"></div>
-          <span className="text-xs font-bold tracking-widest uppercase text-gray-500">OR</span>
-          <div className="flex-1 h-[1px] bg-gray-300"></div>
+          <div className="flex-1 h-[1px] bg-gray-300 dark:bg-[#3A3632]"></div>
+          <span className="text-xs font-bold tracking-widest uppercase text-gray-500 dark:text-[#6B6460]">OR</span>
+          <div className="flex-1 h-[1px] bg-gray-300 dark:bg-[#3A3632]"></div>
         </div>
 
         {/* Upload References */}
@@ -172,7 +176,7 @@ export default function Step3Aesthetic({ onBack, onGenerate, onDataChange, isGen
                 className={`w-24 h-24 md:w-28 md:h-28 rounded-2xl border-2 overflow-hidden flex items-center justify-center transition-colors ${
                   referenceImages[i] 
                     ? 'border-transparent shadow-sm' 
-                    : 'border-dashed border-gray-200 text-gray-400 hover:text-[#4A6D50] hover:border-[#4A6D50] hover:bg-[#4A6D50]/5'
+                    : 'border-dashed border-gray-200 dark:border-[#3A3632] text-gray-400 dark:text-gray-500 hover:text-[#B3541E] dark:hover:text-[#D4621F] hover:border-[#B3541E] hover:bg-[#B3541E]/5 dark:hover:bg-[#B3541E]/10'
                 }`}
                 aria-label="Upload reference image"
               >
@@ -202,8 +206,8 @@ export default function Step3Aesthetic({ onBack, onGenerate, onDataChange, isGen
               onClick={() => handlePillClick(pill)}
               className={`px-6 py-2.5 rounded-full text-[13px] font-semibold transition-colors ${
                 activePill === pill
-                  ? 'bg-[#4A6D50] text-white shadow-md shadow-[#4A6D50]/20'
-                  : 'bg-[#EDEDEB] text-gray-600 hover:bg-[#E5E5E2]'
+                  ? 'bg-[#B3541E] text-white shadow-md shadow-[#B3541E]/20'
+                  : 'bg-[#EDEDEB] dark:bg-[#242220] text-gray-600 dark:text-[#A89F94] border border-transparent dark:border-[#3A3632] hover:bg-[#E5E5E2] dark:hover:bg-[#2E2B28]'
               }`}
             >
               {pill}
@@ -214,13 +218,13 @@ export default function Step3Aesthetic({ onBack, onGenerate, onDataChange, isGen
 
       {/* Footer Navigation */}
       <footer className="w-full bg-transparent py-6 px-8 flex items-center justify-between pb-12 max-w-6xl mx-auto">
-        <button onClick={onBack} className="flex items-center gap-2 text-sm font-semibold text-gray-600 hover:text-[#1F1F1F] uppercase tracking-widest transition-colors">
+        <button onClick={onBack} className="flex items-center gap-2 text-sm font-semibold text-gray-600 dark:text-[#A89F94] hover:text-[#1F1F1F] dark:hover:text-[#F5F0E8] uppercase tracking-widest transition-colors">
           <ArrowLeft size={14} /> BACK
         </button>
         <button 
           onClick={onGenerate} 
           disabled={isGenerating}
-          className="bg-[#4A6D50] text-white px-8 py-4 rounded-xl font-bold text-xs uppercase tracking-wider flex items-center gap-2 hover:bg-[#3A5640] transition-colors shadow-xl shadow-[#4A6D50]/30"
+          className="bg-[#B3541E] text-white px-8 py-4 rounded-xl font-bold text-xs uppercase tracking-wider flex items-center gap-2 hover:bg-[#8E4318] transition-colors shadow-xl shadow-[#B3541E]/30"
         >
           <Sparkles size={16} /> GENERATE MY DESIGN
         </button>

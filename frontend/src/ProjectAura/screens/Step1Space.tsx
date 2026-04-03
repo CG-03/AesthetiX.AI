@@ -50,7 +50,7 @@ export default function Step1Space({ onNext, onBack, onDataChange }: Step1SpaceP
   ];
 
   return (
-    <div className="min-h-screen bg-[#FBFBF9] font-sans text-[#1F1F1F] flex flex-col">
+    <div className="min-h-screen bg-[#FBFBF9] dark:bg-[#0F0E0D] font-sans text-[#1F1F1F] dark:text-[#F5F0E8] flex flex-col transition-colors duration-300">
       <TopNavigation variant="onboarding" />
 
       <main className="flex-1 w-full max-w-5xl mx-auto px-6 py-12 flex flex-col">
@@ -65,7 +65,7 @@ export default function Step1Space({ onNext, onBack, onDataChange }: Step1SpaceP
           </p>
         </div>
 
-        <div className="bg-white rounded-[2rem] p-8 md:p-10 shadow-[0_8px_30px_rgb(0,0,0,0.02)] border border-gray-100 mb-8">
+        <div className="bg-white dark:bg-[#1A1816] rounded-[2rem] p-8 md:p-10 shadow-[0_8px_30px_rgb(0,0,0,0.02)] border border-gray-100 dark:border-[#3A3632] mb-8 transition-colors hover:shadow-[0_0_20px_rgba(179,84,30,0.05)]">
           {/* Room Type Selector */}
           <div className="mb-10">
             <h3 className="text-[10px] font-bold tracking-widest uppercase text-gray-500 mb-4 ml-2">What room are we designing?</h3>
@@ -79,8 +79,8 @@ export default function Step1Space({ onNext, onBack, onDataChange }: Step1SpaceP
                   }}
                   className={`px-6 py-2.5 rounded-full text-xs font-semibold transition-all ${
                     roomType === type
-                      ? 'bg-[#4A6D50] text-white shadow-md shadow-[#4A6D50]/20'
-                      : 'bg-white border border-gray-200 text-gray-600 hover:border-gray-300'
+                      ? 'bg-[#B3541E] text-white shadow-md shadow-[#B3541E]/20'
+                      : 'bg-white dark:bg-[#242220] border border-gray-200 dark:border-[#3A3632] text-gray-600 dark:text-[#A89F94] hover:border-gray-300 dark:hover:border-[#6B6460]'
                   }`}
                 >
                   {type}
@@ -94,16 +94,16 @@ export default function Step1Space({ onNext, onBack, onDataChange }: Step1SpaceP
             {/* Left: Spatial Capture */}
             <div className="space-y-6">
               <h3 className="text-[10px] font-bold tracking-widest uppercase text-gray-500 ml-2">Spatial Capture</h3>
-              <div className="border-2 border-dashed border-gray-200 rounded-3xl p-8 flex flex-col items-center justify-center text-center h-[340px] bg-[#FAFAFA] relative overflow-hidden">
+              <div className="border-2 border-dashed border-gray-200 dark:border-[#3A3632] rounded-3xl p-8 flex flex-col items-center justify-center text-center h-[340px] bg-[#FAFAFA] dark:bg-[#242220]/50 relative overflow-hidden transition-colors">
                 {preview ? (
                   <img src={preview} className="absolute inset-0 w-full h-full object-cover" alt="Preview" />
                 ) : (
                   <>
-                    <div className="w-12 h-12 bg-[#EFEFEF] text-[#4A6D50] rounded-full flex items-center justify-center mb-4">
+                    <div className="w-12 h-12 bg-[#EFEFEF] dark:bg-[#2E2B28] text-[#B3541E] rounded-full flex items-center justify-center mb-4 transition-colors">
                       <Upload size={20} />
                     </div>
-                    <h4 className="font-semibold text-[#1F1F1F] mb-1">Drop image here</h4>
-                    <p className="text-[11px] text-gray-400 mb-6">PNG, JPG up to 10MB</p>
+                    <h4 className="font-semibold text-[#1F1F1F] dark:text-[#F5F0E8] mb-1">Drop image here</h4>
+                    <p className="text-[11px] text-gray-400 dark:text-[#6B6460] mb-6">PNG, JPG up to 10MB</p>
                   </>
                 )}
                 
@@ -125,14 +125,14 @@ export default function Step1Space({ onNext, onBack, onDataChange }: Step1SpaceP
                   />
                   <button 
                     onClick={triggerFileInput}
-                    className="w-full bg-[#EFEFEF]/90 backdrop-blur-sm hover:bg-white text-[#1F1F1F] py-3 rounded-xl text-xs font-semibold flex items-center justify-center gap-2 transition-colors shadow-sm"
+                    className="w-full bg-[#EFEFEF]/90 dark:bg-[#2E2B28]/90 backdrop-blur-sm hover:bg-white dark:hover:bg-[#3A3632] text-[#1F1F1F] dark:text-[#F5F0E8] py-3 rounded-xl text-xs font-semibold flex items-center justify-center gap-2 transition-colors shadow-sm"
                   >
                     <Upload size={14} /> {preview ? 'Change Photo' : 'Browse Files'}
                   </button>
                   {!preview && (
                     <button 
                       onClick={triggerCameraInput}
-                      className="w-full bg-white border border-gray-200 hover:bg-gray-50 text-[#4A6D50] py-3 rounded-xl text-xs font-semibold flex items-center justify-center gap-2 transition-colors"
+                      className="w-full bg-white dark:bg-[#242220] border border-gray-200 dark:border-[#3A3632] hover:bg-gray-50 dark:hover:bg-[#2E2B28] text-[#B3541E] py-3 rounded-xl text-xs font-semibold flex items-center justify-center gap-2 transition-colors"
                     >
                       <Camera size={14} /> Open Camera
                     </button>
@@ -144,7 +144,7 @@ export default function Step1Space({ onNext, onBack, onDataChange }: Step1SpaceP
             {/* Right: Vastu Alignment */}
             <div className="space-y-6">
               <h3 className="text-[10px] font-bold tracking-widest uppercase text-gray-500 ml-2">Vastu Alignment</h3>
-              <div className="bg-[#FAFAFA] rounded-3xl p-8 h-[340px] flex flex-col justify-center border border-gray-100">
+              <div className="bg-[#FAFAFA] dark:bg-[#242220]/50 rounded-3xl p-8 h-[340px] flex flex-col justify-center border border-gray-100 dark:border-[#3A3632] transition-colors">
                 <div className="grid grid-cols-3 gap-3">
                   {vastuDirections.map((dir, i) => {
                     const Icon = dir.icon;
@@ -158,12 +158,12 @@ export default function Step1Space({ onNext, onBack, onDataChange }: Step1SpaceP
                         }}
                         className={`aspect-square rounded-xl flex flex-col items-center justify-center gap-2 transition-all ${
                           isActive 
-                            ? 'bg-white border-2 border-[#4A6D50] shadow-sm text-[#4A6D50]' 
-                            : 'bg-white border border-gray-100 text-gray-600 hover:border-gray-300'
+                            ? 'bg-white border-2 border-[#B3541E] shadow-sm text-[#B3541E] dark:bg-[#1A1816]' 
+                            : 'bg-white dark:bg-[#242220] border border-gray-100 dark:border-[#3A3632] text-gray-600 dark:text-[#A89F94] hover:border-gray-300 dark:hover:border-[#6B6460]'
                         }`}
                       >
                         {dir.label && <span className="text-[10px] font-bold tracking-wider">{dir.label}</span>}
-                        <Icon size={16} className={isActive ? 'text-[#4A6D50]' : 'text-gray-400'} />
+                        <Icon size={16} className={isActive ? 'text-[#B3541E]' : 'text-gray-400'} />
                       </button>
                     );
                   })}
@@ -200,11 +200,19 @@ export default function Step1Space({ onNext, onBack, onDataChange }: Step1SpaceP
       </main>
 
       {/* Footer Navigation */}
-      <footer className="w-full bg-[#F5F5F3] py-6 px-8 md:px-12 flex items-center justify-between border-t border-gray-200">
-        <button onClick={onBack} className="flex items-center gap-2 text-sm font-semibold text-gray-600 hover:text-[#1F1F1F] transition-colors">
+      <footer className="w-full bg-[#F5F5F3] dark:bg-[#1A1816] py-6 px-8 md:px-12 flex items-center justify-between border-t border-gray-200 dark:border-[#3A3632] transition-colors">
+        <button onClick={onBack} className="flex items-center gap-2 text-sm font-semibold text-gray-600 dark:text-[#A89F94] hover:text-[#1F1F1F] dark:hover:text-[#F5F0E8] transition-colors">
           <ArrowLeft size={16} /> Back
         </button>
-        <button onClick={onNext} className="bg-[#4A6D50] text-white px-8 py-3.5 rounded-xl font-semibold text-sm flex items-center gap-2 hover:bg-[#3A5640] transition-colors shadow-lg shadow-[#4A6D50]/20">
+        <button 
+          onClick={onNext} 
+          disabled={!preview}
+          className={`flex items-center gap-2 px-8 py-3.5 rounded-xl font-semibold text-sm transition-all shadow-lg ${
+            preview 
+              ? 'bg-[#B3541E] text-white hover:bg-[#8E4318] shadow-[#B3541E]/20' 
+              : 'bg-gray-200 dark:bg-[#242220] text-gray-400 dark:text-[#6B6460] cursor-not-allowed shadow-none'
+          }`}
+        >
           Next Step <ArrowRight size={16} />
         </button>
       </footer>

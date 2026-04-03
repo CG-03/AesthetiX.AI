@@ -1,9 +1,10 @@
 import React, { useState, useEffect } from 'react';
-import { 
-  PenTool, LayoutTemplate, Tag, ArrowLeft, Download, Share2, X, 
-  Maximize2, ShoppingCart, Loader2, Sofa, Lamp, Layers, 
-  Paintbrush, Wrench, MoreHorizontal, BarChart3, ChevronDown, ChevronUp, KeyRound, HardHat, ExternalLink, Sparkles 
+import {
+  PenTool, LayoutTemplate, Tag, ArrowLeft, Download, Share2, X,
+  Maximize2, ShoppingCart, Loader2, Sofa, Lamp, Layers,
+  Paintbrush, Wrench, MoreHorizontal, BarChart3, ChevronDown, ChevronUp, ChevronRight, KeyRound, HardHat, ExternalLink, Sparkles
 } from 'lucide-react';
+
 import html2canvas from 'html2canvas';
 import ProductCard from '../components/ProductCard';
 import AnalysisCards from '../components/AnalysisCards';
@@ -24,6 +25,7 @@ interface ProjectWorkspaceProps {
   onOpenCart: () => void;
   detectedObjects?: any[];
   isDetectingObjects?: boolean;
+  location?: string;
 }
 
 const products = [
@@ -39,14 +41,20 @@ export default function ProjectWorkspace({ onBack, apiResult, budget = 4500, car
   const [selectedProduct, setSelectedProduct] = useState<any>(null);
   const [isCollageOpen, setIsCollageOpen] = useState(false);
   const collageRef = React.useRef<HTMLDivElement>(null);
-  
+
   const [remediatePrompt, setRemediatePrompt] = useState("");
   const [isRemediating, setIsRemediating] = useState(false);
   const [showRemediateInput, setShowRemediateInput] = useState(false);
   const [activeImage, setActiveImage] = useState<string | null>(null);
   const [isBreakdownOpen, setIsBreakdownOpen] = useState(false);
-  
+
   const [selectedObjectId, setSelectedObjectId] = useState<number | null>(null);
+
+  // Product Search States
+  const [isSearchingProduct, setIsSearchingProduct] = useState(false);
+  const [searchResult, setSearchResult] = useState<any>(null);
+  const [showProductPopup, setShowProductPopup] = useState(false);
+  const [activeLabel, setActiveLabel] = useState<any>(null);
 
   useEffect(() => {
     if (apiResult?.redesignedImage) {
@@ -94,9 +102,9 @@ export default function ProjectWorkspace({ onBack, apiResult, budget = 4500, car
       const res = await fetch("/api/remediate", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ 
+        body: JSON.stringify({
           image: activeImage, // Fix: Send the current redesigned image instead of original
-          promptOverrides: remediatePrompt 
+          promptOverrides: remediatePrompt
         })
       });
       const data = await res.json();
@@ -110,6 +118,34 @@ export default function ProjectWorkspace({ onBack, apiResult, budget = 4500, car
       setIsRemediating(false);
       setShowRemediateInput(false);
       setRemediatePrompt("");
+    }
+  };
+
+  const handleLabelClick = async (obj: any) => {
+    setSelectedObjectId(obj.id);
+    setActiveLabel(obj);
+    setShowProductPopup(true);
+    setIsSearchingProduct(true);
+    setSearchResult(null);
+
+    try {
+      const res = await fetch("/api/search-products", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          productName: obj.label,
+          color: obj.color,
+          style: obj.style,
+          material: obj.material || "standard",
+          location: location || "India"
+        })
+      });
+      const data = await res.json();
+      setSearchResult(data);
+    } catch (err) {
+      console.error("Search failed:", err);
+    } finally {
+      setIsSearchingProduct(false);
     }
   };
 
@@ -134,16 +170,16 @@ export default function ProjectWorkspace({ onBack, apiResult, budget = 4500, car
   };
 
   let displayProducts = apiResult?.products && apiResult.products.length > 0 ? apiResult.products : products;
-  
+
   if (selectedObjectId) {
     const obj = detectedObjects.find(o => o.id === selectedObjectId);
     if (obj) {
       const keywords = obj.label.toLowerCase().split(' ');
-      displayProducts = displayProducts.filter(p => 
-        p.name.toLowerCase().includes(obj.category.toLowerCase()) || 
+      displayProducts = displayProducts.filter(p =>
+        p.name.toLowerCase().includes(obj.category.toLowerCase()) ||
         keywords.some(k => k.length > 3 && p.name.toLowerCase().includes(k))
       );
-      
+
       if (displayProducts.length === 0) {
         displayProducts = [{
           id: obj.id * 1000,
@@ -160,35 +196,35 @@ export default function ProjectWorkspace({ onBack, apiResult, budget = 4500, car
   const selectedObjectLabel = selectedObjectId ? detectedObjects.find(o => o.id === selectedObjectId)?.label : null;
 
   return (
-    <div className="min-h-screen bg-[#FBFBF9] font-sans text-[#1F1F1F]">
+    <div className="min-h-screen bg-[#FBFBF9] dark:bg-[#0F0E0D] font-sans text-[#1F1F1F] dark:text-[#F5F0E8] transition-colors duration-300">
       {/* Top Header */}
-      <header className="w-full flex items-center justify-between py-6 px-8 md:px-12 bg-white sticky top-0 z-50 border-b border-gray-100">
+      <header className="w-full flex items-center justify-between py-6 px-8 md:px-12 bg-white dark:bg-[#1A1816] sticky top-0 z-50 border-b border-gray-100 dark:border-[#3A3632] transition-colors">
         <div className="flex items-center gap-4">
-          <button onClick={onBack} className="w-10 h-10 rounded-full border border-gray-200 flex items-center justify-center text-gray-400 hover:bg-gray-50 transition-colors">
+          <button onClick={onBack} className="w-10 h-10 rounded-full border border-gray-200 dark:border-[#3A3632] flex items-center justify-center text-gray-400 dark:text-[#6B6460] hover:bg-gray-50 dark:hover:bg-[#2E2B28] transition-colors">
             <ArrowLeft size={18} />
           </button>
           <div>
-            <h1 className="text-xl font-bold tracking-tight">Master Bedroom Redo</h1>
-            <p className="text-xs text-gray-400 font-medium">Generated Oct 12, 2023</p>
+            <h1 className="text-xl font-bold tracking-tight text-[#1F1F1F] dark:text-[#F5F0E8]">Master Bedroom Redo</h1>
+            <p className="text-xs text-gray-400 dark:text-[#6B6460] font-medium">Generated Oct 12, 2023</p>
           </div>
         </div>
 
         <div className="flex items-center gap-3">
-          <button onClick={() => setIsCollageOpen(true)} className="flex items-center gap-2 px-4 py-2 rounded-xl border border-gray-200 text-sm font-semibold text-gray-500 hover:bg-gray-50 transition-colors print:hidden">
+          <button onClick={() => setIsCollageOpen(true)} className="flex items-center gap-2 px-4 py-2 rounded-xl border border-gray-200 dark:border-[#3A3632] text-sm font-semibold text-gray-500 dark:text-[#A89F94] hover:bg-gray-50 dark:hover:bg-[#2E2B28] transition-colors print:hidden">
             <Tag size={16} /> Before & After
           </button>
           <div className="relative print:hidden">
-            <button onClick={onOpenCart} className="flex items-center justify-center w-10 h-10 rounded-xl border border-gray-200 text-gray-500 hover:bg-gray-50 transition-colors">
+            <button onClick={onOpenCart} className="flex items-center justify-center w-10 h-10 rounded-xl border border-gray-200 dark:border-[#3A3632] text-gray-500 dark:text-[#A89F94] hover:bg-gray-50 dark:hover:bg-[#2E2B28] transition-colors">
               <ShoppingCart size={18} />
             </button>
             {cartItems.length > 0 && (
-              <span className="absolute -top-1 -right-1 bg-[#4A6D50] text-white text-[10px] font-bold w-4 h-4 flex items-center justify-center rounded-full shadow-sm">{cartItems.length}</span>
+              <span className="absolute -top-1 -right-1 bg-[#B3541E] text-white text-[10px] font-bold w-4 h-4 flex items-center justify-center rounded-full shadow-sm">{cartItems.length}</span>
             )}
           </div>
-          <button onClick={handleShare} className="flex items-center gap-2 px-4 py-2 rounded-xl border border-gray-200 text-sm font-semibold text-gray-500 hover:bg-gray-50 transition-colors print:hidden">
+          <button onClick={handleShare} className="flex items-center gap-2 px-4 py-2 rounded-xl border border-gray-200 dark:border-[#3A3632] text-sm font-semibold text-gray-500 dark:text-[#A89F94] hover:bg-gray-50 dark:hover:bg-[#2E2B28] transition-colors print:hidden">
             <Share2 size={16} /> Share
           </button>
-          <button onClick={handlePrint} className="flex items-center gap-2 px-4 py-2 rounded-xl bg-[#4A6D50] text-white text-sm font-semibold hover:bg-[#3A5640] transition-colors shadow-md print:hidden">
+          <button onClick={handlePrint} className="flex items-center gap-2 px-4 py-2 rounded-xl bg-[#B3541E] text-white text-sm font-semibold hover:bg-[#8E4318] transition-colors shadow-lg shadow-[#B3541E]/20 print:hidden">
             <Download size={16} /> Export PDF
           </button>
         </div>
@@ -200,69 +236,71 @@ export default function ProjectWorkspace({ onBack, apiResult, budget = 4500, car
         <div className="lg:col-span-8 flex flex-col gap-8">
 
           {/* Main Rendering */}
-          <div className="bg-white rounded-[2rem] p-6 border border-gray-100 shadow-sm">
+          <div className="bg-white dark:bg-[#1A1816] rounded-[2rem] p-6 border border-gray-100 dark:border-[#3A3632] shadow-sm transition-colors">
             <div className="flex items-center justify-between mb-4">
-              <h2 className="font-bold text-lg flex items-center gap-2">
-                <LayoutTemplate size={18} className="text-[#4A6D50]" /> AI Vision Render
+              <h2 className="font-bold text-lg flex items-center gap-2 text-gray-900 dark:text-[#F5F0E8]">
+                <LayoutTemplate size={18} className="text-[#B3541E]" /> AI Vision Render
               </h2>
-              <div className="flex bg-gray-100 p-1 rounded-xl">
-                <button 
+              <div className="flex bg-gray-100 dark:bg-[#0F0E0D] p-1 rounded-xl">
+                <button
                   onClick={() => setRenderMode('original')}
-                  className={`px-4 py-1.5 rounded-lg text-sm font-semibold transition-colors ${renderMode === 'original' ? 'bg-white shadow-sm text-[#1F1F1F]' : 'text-gray-500 hover:text-gray-800'}`}>Original</button>
-                <button 
+                  className={`px-4 py-1.5 rounded-lg text-sm font-semibold transition-colors ${renderMode === 'original' ? 'bg-white dark:bg-[#1A1816] shadow-sm text-[#1F1F1F] dark:text-[#F5F0E8]' : 'text-gray-500 hover:text-gray-800 dark:text-[#6B6460] dark:hover:text-[#A89F94]'}`}>Original</button>
+                <button
                   onClick={() => setRenderMode('daylight')}
-                  className={`px-4 py-1.5 rounded-lg text-sm font-semibold transition-colors ${renderMode === 'daylight' ? 'bg-white shadow-sm text-[#1F1F1F]' : 'text-gray-500 hover:text-gray-800'}`}>Daylight</button>
-                 <button 
+                  className={`px-4 py-1.5 rounded-lg text-sm font-semibold transition-colors ${renderMode === 'daylight' ? 'bg-white dark:bg-[#1A1816] shadow-sm text-[#1F1F1F] dark:text-[#F5F0E8]' : 'text-gray-500 hover:text-gray-800 dark:text-[#6B6460] dark:hover:text-[#A89F94]'}`}>Daylight</button>
+                <button
                   onClick={() => setRenderMode('nighttime')}
-                  className={`px-4 py-1.5 rounded-lg text-sm font-semibold transition-colors ${renderMode === 'nighttime' ? 'bg-white shadow-sm text-[#1F1F1F]' : 'text-gray-500 hover:text-gray-800'}`}>Nighttime</button>
+                  className={`px-4 py-1.5 rounded-lg text-sm font-semibold transition-colors ${renderMode === 'nighttime' ? 'bg-white dark:bg-[#1A1816] shadow-sm text-[#1F1F1F] dark:text-[#F5F0E8]' : 'text-gray-500 hover:text-gray-800 dark:text-[#6B6460] dark:hover:text-[#A89F94]'}`}>Nighttime</button>
               </div>
             </div>
 
-            <div className="aspect-video bg-gray-100 rounded-2xl overflow-hidden relative group">
+            <div className="aspect-video bg-gray-100 dark:bg-[#0F0E0D] rounded-2xl overflow-hidden relative group transition-colors border border-transparent dark:border-[#3A3632]">
               {isRemediating && (
                 <div className="absolute inset-0 z-20 bg-black/40 backdrop-blur-sm flex flex-col items-center justify-center text-white">
                   <Loader2 size={32} className="animate-spin mb-4" />
                   <p className="font-bold tracking-widest uppercase text-sm">Applying AI Edits...</p>
                 </div>
               )}
-              <img 
-                src={getRenderSrc()} 
-                alt="AI Redesign" 
+              <img
+                src={getRenderSrc()}
+                alt="AI Redesign"
                 className={`w-full h-full object-cover transition-all duration-500 ${isRemediating ? 'scale-105 blur-sm' : ''}`}
                 style={getRenderImageStyle()}
                 referrerPolicy="no-referrer"
               />
 
-              {/* Render Hotspots */}
+              {/* Floating Labels (Replacing SAM Hotspots) */}
               {renderMode !== 'original' && detectedObjects && detectedObjects.length > 0 && (
                 <div className="absolute inset-0 z-10 pointer-events-none">
-                  {detectedObjects.map((obj: any) => (
-                    <button 
-                      key={obj.id}
-                      onClick={() => setSelectedObjectId(obj.id === selectedObjectId ? null : obj.id)}
-                      className={`absolute border-2 border-dashed transition-all duration-300 cursor-pointer group/hotspot pointer-events-auto rounded-lg
-                        ${selectedObjectId === obj.id 
-                          ? 'border-[#4A6D50] bg-[#4A6D50]/20 z-20 shadow-[0_0_15px_rgba(74,109,80,0.5)] border-solid' 
-                          : 'border-white/50 hover:border-white hover:bg-white/10 z-10'}`}
-                      style={{
-                        left: `${obj.boundingBox.x}%`,
-                        top: `${obj.boundingBox.y}%`,
-                        width: `${obj.boundingBox.width}%`,
-                        height: `${obj.boundingBox.height}%`
-                      }}
-                    >
-                      <div className={`absolute -top-8 left-1/2 -translate-x-1/2 bg-black/80 text-white text-[10px] font-bold uppercase tracking-widest px-3 py-1.5 rounded-full backdrop-blur-sm whitespace-nowrap transition-opacity duration-300 pointer-events-none
-                        ${selectedObjectId === obj.id ? 'opacity-100' : 'opacity-0 group-hover/hotspot:opacity-100'}`}>
-                        {obj.label}
-                      </div>
+                  {detectedObjects.map((obj: any, index: number) => {
+                    const isSelected = selectedObjectId === obj.id;
+                    // Simple offset logic for overlapping labels
+                    const offset = (index % 3) * 5;
 
-                      {selectedObjectId === obj.id && (
-                        <div className="absolute top-2 right-2 bg-white text-[#4A6D50] p-1.5 rounded-full shadow-md animate-bounce">
-                           <Sparkles size={12} />
-                        </div>
-                      )}
-                    </button>
-                  ))}
+                    return (
+                      <div
+                        key={obj.id}
+                        className="absolute pointer-events-auto transition-all duration-300 transform -translate-x-1/2 -translate-y-1/2"
+                        style={{
+                          left: `${obj.boundingBox.x}%`,
+                          top: `${obj.boundingBox.y + (isSelected ? 0 : offset)}%`,
+                          zIndex: isSelected ? 50 : 30
+                        }}
+                      >
+                        <button
+                          onClick={() => handleLabelClick(obj)}
+                          className={`group flex items-center gap-2 px-4 py-2 rounded-full border-2 transition-all duration-300 shadow-lg whitespace-nowrap
+                            ${isSelected
+                              ? 'bg-[#B3541E] border-[#B3541E] text-white scale-110 shadow-[0_0_20px_rgba(179,84,30,0.6)]'
+                              : 'bg-white dark:bg-[#242220] border-[#B3541E] text-[#1F1F1F] dark:text-[#F5F0E8] hover:scale-105 hover:shadow-[0_0_15px_rgba(179,84,30,0.4)]'}`}
+                        >
+                          <div className={`w-2 h-2 rounded-full animate-pulse ${isSelected ? 'bg-white' : 'bg-[#B3541E]'}`} />
+                          <span className="text-[11px] font-bold uppercase tracking-wider">{obj.label}</span>
+                          <ChevronRight size={14} className={`transition-transform ${isSelected ? 'rotate-90' : 'group-hover:translate-x-0.5'}`} />
+                        </button>
+                      </div>
+                    );
+                  })}
                 </div>
               )}
 
@@ -277,28 +315,28 @@ export default function ProjectWorkspace({ onBack, apiResult, budget = 4500, car
               {renderMode !== 'original' && (
                 <div className="absolute bottom-6 left-1/2 -translate-x-1/2 z-10 w-[90%] max-w-md print:hidden">
                   {showRemediateInput ? (
-                     <div className="bg-white/95 backdrop-blur-xl p-2 rounded-2xl shadow-2xl flex gap-2 w-full animate-in slide-in-from-bottom-5">
-                       <input 
-                         type="text" 
-                         value={remediatePrompt}
-                         onChange={e => setRemediatePrompt(e.target.value)}
-                         placeholder="e.g. Change walls to dark blue..." 
-                         className="flex-1 bg-transparent px-4 py-2 text-sm focus:outline-none"
-                         onKeyDown={e => e.key === 'Enter' && executeRemediate()}
-                       />
-                       <button onClick={executeRemediate} className="bg-[#4A6D50] text-white px-4 py-2 rounded-xl text-sm font-bold shadow-sm">
-                         Update
-                       </button>
-                       <button onClick={() => setShowRemediateInput(false)} className="text-gray-400 p-2 hover:bg-gray-100 rounded-xl">
-                         <X size={16} />
-                       </button>
-                     </div>
+                    <div className="bg-white/95 dark:bg-[#1A1816]/95 backdrop-blur-xl p-2 rounded-2xl shadow-2xl flex gap-2 w-full animate-in slide-in-from-bottom-5 border border-gray-100 dark:border-[#3A3632]">
+                      <input
+                        type="text"
+                        value={remediatePrompt}
+                        onChange={e => setRemediatePrompt(e.target.value)}
+                        placeholder="e.g. Change walls to dark blue..."
+                        className="flex-1 bg-transparent px-4 py-2 text-sm focus:outline-none dark:text-[#F5F0E8] placeholder:dark:text-[#6B6460]"
+                        onKeyDown={e => e.key === 'Enter' && executeRemediate()}
+                      />
+                      <button onClick={executeRemediate} className="bg-[#B3541E] text-white px-4 py-2 rounded-xl text-sm font-bold shadow-sm hover:bg-[#8E4318]">
+                        Update
+                      </button>
+                      <button onClick={() => setShowRemediateInput(false)} className="text-gray-400 dark:text-[#A89F94] p-2 hover:bg-gray-100 dark:hover:bg-[#2E2B28] rounded-xl">
+                        <X size={16} />
+                      </button>
+                    </div>
                   ) : (
-                    <button 
+                    <button
                       onClick={() => setShowRemediateInput(true)}
-                      className="mx-auto bg-white/95 backdrop-blur-md px-6 py-3 rounded-full shadow-[0_8px_30px_rgb(0,0,0,0.12)] font-bold text-sm flex items-center gap-2 hover:scale-105 transition-transform text-[#1F1F1F]"
+                      className="mx-auto bg-white/95 dark:bg-[#1A1816]/95 backdrop-blur-md px-6 py-3 rounded-full shadow-[0_8px_30px_rgb(0,0,0,0.12)] font-bold text-sm flex items-center gap-2 hover:scale-105 transition-all text-[#1F1F1F] dark:text-[#F5F0E8] border border-gray-100 dark:border-[#3A3632]"
                     >
-                      <PenTool size={16} className="text-[#4A6D50]" /> Remediate with AI
+                      <PenTool size={16} className="text-[#B3541E]" /> Remediate with AI
                     </button>
                   )}
                 </div>
@@ -306,22 +344,22 @@ export default function ProjectWorkspace({ onBack, apiResult, budget = 4500, car
             </div>
           </div>
 
-          <div className="bg-white rounded-[2rem] p-6 border border-gray-100 shadow-sm">
-            <h2 className="font-bold text-lg mb-6 flex items-center gap-2">
-              <Tag size={18} className="text-[#4A6D50]" /> AI Analysis & Concept
+          <div className="bg-white dark:bg-[#1A1816] rounded-[2rem] p-6 border border-gray-100 dark:border-[#3A3632] shadow-sm transition-colors">
+            <h2 className="font-bold text-lg mb-6 flex items-center gap-2 text-gray-900 dark:text-[#F5F0E8]">
+              <Tag size={18} className="text-[#B3541E]" /> AI Analysis & Concept
             </h2>
-            
+
             <div className="mb-10">
               {apiResult?.text ? (
                 <AnalysisCards text={apiResult.text} />
               ) : (
-                <div className="p-12 text-center bg-gray-50 rounded-[2.5rem] border-2 border-dashed border-gray-100 flex flex-col items-center justify-center">
-                   <div className="w-12 h-12 bg-white rounded-full flex items-center justify-center shadow-sm mb-4 animate-pulse">
-                      <Sparkles size={20} className="text-[#4A6D50]" />
-                   </div>
-                   <p className="text-gray-400 font-medium max-w-[280px] leading-relaxed">
-                     Our AI is synthesizing your space... Your Vastu-compliant transformation will appear here shortly.
-                   </p>
+                <div className="p-12 text-center bg-gray-50 dark:bg-[#0F0E0D]/30 rounded-[2.5rem] border-2 border-dashed border-gray-100 dark:border-[#3A3632] flex flex-col items-center justify-center">
+                  <div className="w-12 h-12 bg-white dark:bg-[#1A1816] rounded-full flex items-center justify-center shadow-sm mb-4 animate-pulse">
+                    <Sparkles size={20} className="text-[#B3541E]" />
+                  </div>
+                  <p className="text-gray-400 dark:text-[#6B6460] font-medium max-w-[280px] leading-relaxed">
+                    Our AI is synthesizing your space... Your Vastu-compliant transformation will appear here shortly.
+                  </p>
                 </div>
               )}
             </div>
@@ -333,7 +371,7 @@ export default function ProjectWorkspace({ onBack, apiResult, budget = 4500, car
         <div className="lg:col-span-4 flex flex-col gap-8">
 
           {/* Investment Summary */}
-          <div className="bg-[#4A6D50] text-white rounded-[2rem] p-8 shadow-lg shadow-[#4A6D50]/20 relative overflow-hidden transition-all h-[340px] flex flex-col justify-between">
+          <div className="bg-[#B3541E] text-white rounded-[2rem] p-8 shadow-lg shadow-[#B3541E]/20 relative overflow-hidden transition-all h-[340px] flex flex-col justify-between">
             {/* Background flourish */}
             <div className="absolute -top-20 -right-20 w-48 h-48 bg-white/10 rounded-full blur-2xl" />
 
@@ -342,16 +380,16 @@ export default function ProjectWorkspace({ onBack, apiResult, budget = 4500, car
                 <h3 className="text-[11px] font-bold uppercase tracking-[0.2em] text-white/70 mb-2">Estimated Budget Distribution</h3>
                 <p className="text-4xl font-bold tracking-tight">${budget.toLocaleString()}</p>
               </div>
-              <div className="bg-white/20 p-1 rounded-lg flex text-[10px] font-bold uppercase shrink-0 print:hidden shadow-inner">
-                <button 
+              <div className="bg-white/20 p-1 rounded-lg flex text-[10px] font-bold uppercase shrink-0 print:hidden shadow-inner backdrop-blur-sm">
+                <button
                   onClick={() => setCostMode('retail')}
-                  className={`flex items-center gap-2 px-3 py-1.5 rounded transition-all duration-300 ${costMode === 'retail' ? 'bg-white text-[#4A6D50] shadow-sm' : 'text-white hover:bg-white/10'}`}>
-                    <KeyRound size={12} /> Turnkey
+                  className={`flex items-center gap-2 px-3 py-1.5 rounded transition-all duration-300 ${costMode === 'retail' ? 'bg-white text-[#B3541E] shadow-sm' : 'text-white hover:bg-white/10'}`}>
+                  <KeyRound size={12} /> Turnkey
                 </button>
-                <button 
+                <button
                   onClick={() => setCostMode('custom')}
-                  className={`flex items-center gap-2 px-3 py-1.5 rounded transition-all duration-300 ${costMode === 'custom' ? 'bg-white text-[#4A6D50] shadow-sm' : 'text-white hover:bg-white/10'}`}>
-                    <HardHat size={12} /> Material+Labor
+                  className={`flex items-center gap-2 px-3 py-1.5 rounded transition-all duration-300 ${costMode === 'custom' ? 'bg-white text-[#B3541E] shadow-sm' : 'text-white hover:bg-white/10'}`}>
+                  <HardHat size={12} /> Material+Labor
                 </button>
               </div>
             </div>
@@ -362,10 +400,10 @@ export default function ProjectWorkspace({ onBack, apiResult, budget = 4500, car
                 <>
                   <div className="flex justify-between items-center border-b border-white/10 pb-3">
                     <div className="flex items-center gap-3">
-                      <div className="p-2 bg-white/10 rounded-lg"><Sofa size={14} /></div>
-                      <span className="text-white/80">Furniture & Decor</span>
+                      <div className="p-2 bg-white/10 rounded-lg shadow-inner"><Sofa size={14} /></div>
+                      <span className="text-white/80 font-medium">Furniture & Decor</span>
                     </div>
-                    <span className="font-semibold">${(budget * 0.40).toLocaleString()}</span>
+                    <span className="font-bold text-white">${(budget * 0.40).toLocaleString()}</span>
                   </div>
                   <div className="flex justify-between items-center border-b border-white/10 pb-3">
                     <div className="flex items-center gap-3">
@@ -404,7 +442,7 @@ export default function ProjectWorkspace({ onBack, apiResult, budget = 4500, car
                   </div>
                 </>
               ) : (
-                 <>
+                <>
                   <div className="flex justify-between items-center border-b border-white/10 pb-3">
                     <div className="flex items-center gap-3">
                       <div className="p-2 bg-white/10 rounded-lg"><BarChart3 size={14} /></div>
@@ -430,9 +468,9 @@ export default function ProjectWorkspace({ onBack, apiResult, budget = 4500, car
               )}
             </div>
 
-            <button 
+            <button
               onClick={() => setIsBreakdownOpen(!isBreakdownOpen)}
-              className="w-full bg-white text-[#4A6D50] py-3.5 rounded-xl font-bold shadow-md hover:bg-gray-50 transition-all active:scale-95 text-sm relative z-10 mt-auto flex items-center justify-center gap-2"
+              className="w-full bg-white dark:bg-[#242220] text-[#B3541E] py-3.5 rounded-xl font-bold shadow-md hover:bg-gray-50 dark:hover:bg-[#3A3632] transition-all active:scale-95 text-sm relative z-10 mt-auto flex items-center justify-center gap-2"
             >
               <BarChart3 size={16} />
               {isBreakdownOpen ? 'Hide Detail Breakdown' : 'View Detailed Breakdown'}
@@ -441,29 +479,29 @@ export default function ProjectWorkspace({ onBack, apiResult, budget = 4500, car
           </div>
 
           {/* Sourcing List */}
-          <div className="bg-white rounded-[2rem] p-6 border border-gray-100 shadow-sm flex-1">
+          <div className="bg-white dark:bg-[#1A1816] rounded-[2rem] p-6 border border-gray-100 dark:border-[#3A3632] shadow-sm flex-1 transition-colors">
             <div className="flex items-center justify-between mb-6">
               <div className="flex flex-col">
-                <h2 className="font-bold text-lg flex items-center gap-2">
-                   {selectedObjectLabel ? `Sourcing: ${selectedObjectLabel}` : 'Top Picks & Sourcing'}
+                <h2 className="font-bold text-lg flex items-center gap-2 text-gray-900 dark:text-[#F5F0E8]">
+                  {selectedObjectLabel ? `Sourcing: ${selectedObjectLabel}` : 'Top Picks & Sourcing'}
                 </h2>
                 {selectedObjectLabel && (
-                  <button onClick={() => setSelectedObjectId(null)} className="text-xs text-[#4A6D50] hover:underline text-left mt-1 font-bold">
-                    Clear SAM Selection &times;
+                  <button onClick={() => setSelectedObjectId(null)} className="text-xs text-[#B3541E] hover:underline text-left mt-1 font-bold">
+                    Clear Selection &times;
                   </button>
                 )}
               </div>
-              <span className="bg-gray-100 text-gray-500 text-xs font-bold px-3 py-1 rounded-full uppercase tracking-wider">{displayProducts.length} Items</span>
+              <span className="bg-gray-100 dark:bg-[#0F0E0D] text-gray-500 dark:text-[#6B6460] text-xs font-bold px-3 py-1 rounded-full uppercase tracking-wider">{displayProducts.length} Items</span>
             </div>
 
             <div className="grid grid-cols-2 gap-4">
               {displayProducts.map((p: any) => (
-                <ProductCard 
-                  key={p.id || Math.random()} 
-                  {...p} 
+                <ProductCard
+                  key={p.id || Math.random()}
+                  {...p}
                   amazonLink={`https://www.amazon.in/s?k=${encodeURIComponent(p.searchQuery || p.name)}`}
                   indiaMartLink={`https://www.indiamart.com/search.mp?ss=${encodeURIComponent(p.searchQuery || p.name)}`}
-                  onClick3D={() => setSelectedProduct(p)} 
+                  onClick3D={() => setSelectedProduct(p)}
                   onAddToCart={onAddToCart}
                 />
               ))}
@@ -474,92 +512,195 @@ export default function ProjectWorkspace({ onBack, apiResult, budget = 4500, car
 
       </main>
 
-      {/* 3D Product View Modal */}
-      {selectedProduct && (
-        <div className="fixed inset-0 z-[100] flex items-center justify-center p-4 bg-black/50 backdrop-blur-sm">
-          <div className="bg-white rounded-3xl w-full max-w-2xl overflow-hidden shadow-2xl relative border border-gray-100">
-            <button 
-              onClick={() => setSelectedProduct(null)} 
-              className="absolute top-4 right-4 z-10 w-8 h-8 flex items-center justify-center bg-white/80 backdrop-blur-md rounded-full text-gray-600 hover:bg-white transition-colors"
+      {/* Product Discovery Popup */}
+      {showProductPopup && activeLabel && (
+        <div className="fixed inset-0 z-[110] flex items-center justify-center p-4 bg-black/60 backdrop-blur-md transition-all animate-in fade-in duration-300" onClick={() => setShowProductPopup(false)}>
+          <div className="bg-white dark:bg-[#1A1816] rounded-[2.5rem] w-full max-w-2xl overflow-hidden shadow-2xl relative border border-gray-100 dark:border-[#3A3632] animate-in zoom-in-95 duration-300" onClick={e => e.stopPropagation()}>
+            <button
+              onClick={() => setShowProductPopup(false)}
+              className="absolute top-6 right-6 z-20 w-10 h-10 flex items-center justify-center bg-white/90 dark:bg-[#2E2B28]/90 backdrop-blur-sm rounded-full text-gray-500 dark:text-[#A89F94] hover:text-black dark:hover:text-[#F5F0E8] hover:scale-110 transition-all shadow-md"
             >
-              <X size={18} />
+              <X size={20} />
             </button>
-            <div className="flex flex-col md:flex-row h-auto md:h-[400px]">
-              <div className="w-full h-64 md:h-full md:w-1/2 bg-[#FAFAFA] flex items-center justify-center relative group">
-                <img src={selectedProduct.image} alt={selectedProduct.name} className="w-full h-full object-cover opacity-90" />
-                <div className="absolute inset-0 flex items-center justify-center pointer-events-none">
-                  <div className="bg-black/60 text-white px-4 py-2 rounded-full backdrop-blur-sm text-[10px] font-bold tracking-widest uppercase flex items-center gap-2">
-                    <Maximize2 size={12} /> Drag to rotate 360°
-                  </div>
+
+            {/* Header Content */}
+            <div className="p-8 pb-4">
+              <div className="flex items-center gap-2 mb-2">
+                <span className="px-3 py-1 bg-[#B3541E]/10 text-[#B3541E] text-[10px] font-bold uppercase tracking-widest rounded-full">Detected Item</span>
+                <span className="text-gray-300 dark:text-[#3A3632]">•</span>
+                <span className="text-gray-400 dark:text-[#6B6460] text-[10px] font-bold uppercase tracking-widest">{activeLabel.style} • {activeLabel.color}</span>
+              </div>
+              <h2 className="text-3xl font-bold tracking-tight text-[#1F1F1F] dark:text-[#F5F0E8] capitalize">{activeLabel.label}</h2>
+            </div>
+
+            {/* Main Content Area */}
+            <div className="px-8 pb-8 overflow-y-auto max-h-[70vh] custom-scrollbar">
+
+              {/* Product Visuals (Serper Images) */}
+              <div className="mb-8">
+                <h3 className="text-xs font-bold text-gray-400 dark:text-[#6B6460] uppercase tracking-widest mb-4">Visual Matches & Inspo</h3>
+                <div className="flex gap-4 overflow-x-auto pb-4 no-scrollbar">
+                  {isSearchingProduct ? (
+                    [...Array(3)].map((_, i) => (
+                      <div key={i} className="min-w-[240px] h-48 bg-gray-100 dark:bg-[#0F0E0D] rounded-2xl animate-pulse border border-transparent dark:border-[#3A3632]" />
+                    ))
+                  ) : searchResult?.products?.length > 0 ? (
+                    searchResult.products.map((prod: any, i: number) => (
+                      <div key={i} className="min-w-[240px] group relative h-48 rounded-2xl overflow-hidden border border-gray-100 shadow-sm transition-all hover:shadow-md">
+                        <img src={prod.image} alt={prod.name} className="w-full h-full object-cover transition-transform group-hover:scale-105" />
+                        <div className="absolute inset-0 bg-gradient-to-t from-black/60 to-transparent p-4 flex flex-col justify-end opacity-0 group-hover:opacity-100 transition-opacity">
+                          <p className="text-white text-[11px] font-bold line-clamp-1">{prod.name}</p>
+                          <p className="text-[#B3541E] text-xs font-bold">{prod.price}</p>
+                        </div>
+                      </div>
+                    ))
+                  ) : (
+                    <div className="w-full h-32 flex items-center justify-center bg-gray-50 dark:bg-[#0F0E0D]/50 rounded-2xl border-2 border-dashed border-gray-100 dark:border-[#3A3632] text-gray-400 dark:text-[#6B6460] text-xs italic">
+                      Searching premium matches...
+                    </div>
+                  )}
                 </div>
               </div>
-              <div className="p-8 w-full md:w-1/2 flex flex-col justify-center">
-                <span className="text-[10px] font-bold uppercase tracking-[0.2em] text-[#4A6D50] mb-2">{selectedProduct.brand}</span>
-                <h3 className="text-2xl font-bold tracking-tight mb-2">{selectedProduct.name}</h3>
-                <p className="text-xl font-bold text-gray-500 mb-6">${selectedProduct.price.toLocaleString()}</p>
-                <p className="text-sm text-gray-500 mb-8 leading-relaxed">
-                  Interactive 3D model generated via SAM. Rotate, zoom, and inspect details to ensure it fits perfectly into your space.
-                </p>
-                <div className="flex gap-3 mt-auto">
-                  <button 
-                    onClick={() => { onAddToCart(selectedProduct); setSelectedProduct(null); }}
-                    className="flex-1 bg-[#4A6D50] text-white font-bold py-3.5 rounded-xl shadow-md hover:bg-[#3A5640] transition-colors text-xs uppercase tracking-wider"
-                  >
-                    Add to Cart
-                  </button>
-                  <button onClick={() => setSelectedProduct(null)} className="flex-1 border-2 border-gray-200 text-gray-600 font-bold py-3.5 rounded-xl hover:border-gray-300 transition-colors text-xs uppercase tracking-wider">Cancel</button>
+
+              {/* Shopping Platforms */}
+              <div className="mb-8">
+                <h3 className="text-xs font-bold text-gray-400 dark:text-gray-500 uppercase tracking-widest mb-4">Direct Sourcing Platforms</h3>
+                <div className="grid grid-cols-2 sm:grid-cols-3 gap-3">
+                  <a href={searchResult?.platformLinks?.amazon} target="_blank" rel="noopener noreferrer" className="flex items-center justify-center gap-2 py-3.5 rounded-xl bg-[#F3D14D]/10 border border-[#F3D14D]/30 text-[#846C00] font-bold text-[11px] hover:bg-[#F3D14D] hover:text-black transition-all">
+                    Amazon India
+                  </a>
+                  <a href={searchResult?.platformLinks?.flipkart} target="_blank" rel="noopener noreferrer" className="flex items-center justify-center gap-2 py-3.5 rounded-xl bg-[#2874F0]/10 border border-[#2874F0]/30 text-[#2874F0] font-bold text-[11px] hover:bg-[#2874F0] hover:text-white transition-all">
+                    Flipkart
+                  </a>
+                  <a href={searchResult?.platformLinks?.pepperfry} target="_blank" rel="noopener noreferrer" className="flex items-center justify-center gap-2 py-3.5 rounded-xl bg-[#FF4F00]/10 border border-[#FF4F00]/30 text-[#FF4F00] font-bold text-[11px] hover:bg-[#FF4F00] hover:text-white transition-all">
+                    Pepperfry
+                  </a>
+                  <a href={searchResult?.platformLinks?.urbanladder} target="_blank" rel="noopener noreferrer" className="flex items-center justify-center gap-2 py-3.5 rounded-xl bg-[#B3541E]/10 border border-[#B3541E]/30 text-[#B3541E] font-bold text-[11px] hover:bg-[#B3541E] hover:text-white transition-all">
+                    Urban Ladder
+                  </a>
+                  <a href={searchResult?.platformLinks?.indiamart} target="_blank" rel="noopener noreferrer" className="flex items-center justify-center gap-2 py-3.5 rounded-xl bg-[#002F6C]/10 border border-[#002F6C]/30 text-[#002F6C] font-bold text-[11px] hover:bg-[#002F6C] hover:text-white transition-all">
+                    IndiaMart
+                  </a>
+                  <a href={searchResult?.platformLinks?.nearby} target="_blank" rel="noopener noreferrer" className="flex items-center justify-center gap-2 py-3.5 rounded-xl bg-[#EA4335]/10 border border-[#EA4335]/30 text-[#EA4335] font-bold text-[11px] hover:bg-[#EA4335] hover:text-white transition-all">
+                    Nearby Stores
+                  </a>
                 </div>
+              </div>
+
+              {/* Action */}
+              <div className="flex gap-4">
+                <button
+                  onClick={() => {
+                    const firstProd = searchResult?.products?.[0];
+                    if (firstProd) {
+                      onAddToCart({
+                        id: activeLabel.id,
+                        name: firstProd.name,
+                        brand: firstProd.seller,
+                        price: parseInt(firstProd.price.replace(/[^0-9]/g, '')) || 0,
+                        image: firstProd.image
+                      });
+                      setShowProductPopup(false);
+                    }
+                  }}
+                  disabled={!searchResult?.products?.length}
+                  className={`flex-1 flex items-center justify-center gap-2 py-4 rounded-2xl font-bold text-sm shadow-xl transition-all active:scale-95
+                    ${searchResult?.products?.length
+                      ? 'bg-[#B3541E] text-white hover:bg-[#8E4318] shadow-[#B3541E]/20'
+                      : 'bg-gray-100 dark:bg-[#0F0E0D] text-gray-400 dark:text-[#6B6460] cursor-not-allowed'}`}
+                >
+                  <ShoppingCart size={18} /> Add Top Match to Cart
+                </button>
               </div>
             </div>
           </div>
         </div>
       )}
-
       {/* Before & After Collage Modal */}
       {isCollageOpen && (
-        <div className="fixed inset-0 z-[100] flex items-center justify-center p-4 bg-black/80 backdrop-blur-sm" onClick={() => setIsCollageOpen(false)}>
-          <div className="max-w-4xl w-full relative" onClick={e => e.stopPropagation()}>
+        <div className="fixed inset-0 z-[150] flex items-center justify-center p-6 bg-black/80 backdrop-blur-xl animate-in fade-in duration-300">
+          <div className="bg-white dark:bg-[#0F0E0D] rounded-[3rem] w-full max-w-5xl overflow-hidden shadow-2xl relative animate-in zoom-in-95 duration-300">
             <button 
-              onClick={() => setIsCollageOpen(false)} 
-              className="absolute -top-12 right-0 md:-right-12 z-10 w-10 h-10 flex items-center justify-center rounded-full text-white hover:bg-white/20 transition-colors"
+              onClick={() => setIsCollageOpen(false)}
+              className="absolute top-8 right-8 z-20 w-12 h-12 flex items-center justify-center bg-white/90 dark:bg-[#1A1816]/90 backdrop-blur-sm rounded-full text-gray-500 dark:text-[#A89F94] hover:text-black dark:hover:text-[#F5F0E8] transition-all shadow-lg"
             >
               <X size={24} />
             </button>
-            
-            <div ref={collageRef} className="bg-white p-6 rounded-[2rem] shadow-2xl">
-              <div className="text-center mb-6">
-                <h2 className="text-2xl font-bold tracking-tight">VastuVision Transformation</h2>
-                <p className="text-gray-500 text-sm">Master Bedroom Redo</p>
-              </div>
-              <div className="flex flex-col md:flex-row gap-4 mb-2">
-                <div className="flex-1 aspect-video rounded-xl overflow-hidden relative border border-gray-100">
-                  <img src={formatImageSrc(apiResult?.image)} alt="Before" className="w-full h-full object-cover" crossOrigin="anonymous" />
-                  <div className="absolute top-4 left-4 bg-black/60 text-white px-4 py-1.5 rounded-full text-xs font-bold uppercase tracking-widest backdrop-blur-sm">Before</div>
-                </div>
-                <div className="flex-1 aspect-video rounded-xl overflow-hidden relative border border-[#4A6D50]/30">
-                  <img src={formatImageSrc(activeImage)} alt="After" className="w-full h-full object-cover" crossOrigin="anonymous" />
-                  <div className="absolute top-4 left-4 bg-[#4A6D50] text-white px-4 py-1.5 rounded-full text-xs font-bold uppercase tracking-widest shadow-sm">After</div>
-                </div>
-              </div>
-            </div>
 
-            <div className="flex flex-col sm:flex-row justify-center gap-4 mt-8">
-              <button className="flex justify-center items-center gap-2 px-8 py-3.5 rounded-xl bg-[#4A6D50] text-white text-sm font-bold shadow-md hover:bg-[#3A5640] transition-all active:scale-95" onClick={handleShare}>
-                <Share2 size={16} /> Share Collage
-              </button>
-              <button className="flex justify-center items-center gap-2 px-8 py-3.5 rounded-xl bg-white text-gray-700 border-2 border-white/20 text-sm font-bold hover:bg-white/10 hover:text-white transition-all active:scale-95" onClick={handleDownloadCollage}>
-                <Download size={16} /> Download High-Res
-              </button>
+            <div className="p-12">
+              <div className="flex flex-col md:flex-row items-center justify-between mb-10 gap-6">
+                <div>
+                  <h2 className="text-3xl font-bold tracking-tight text-gray-900 dark:text-[#F5F0E8]">Design Transformation</h2>
+                  <p className="text-gray-500 dark:text-[#A89F94] font-medium mt-1">A visual comparison of your Vastu-compliant redesign.</p>
+                </div>
+                <button 
+                  onClick={handleDownloadCollage}
+                  className="bg-[#B3541E] text-white px-8 py-4 rounded-2xl font-bold text-sm flex items-center gap-2 hover:bg-[#8E4318] transition-all shadow-xl shadow-[#B3541E]/20 active:scale-95"
+                >
+                  <Download size={18} /> Download Comparison
+                </button>
+              </div>
+
+              <div 
+                ref={collageRef}
+                className="grid grid-cols-1 md:grid-cols-2 gap-4 bg-[#FBFBF9] dark:bg-[#1A1816] p-6 rounded-[2rem] border border-gray-100 dark:border-[#3A3632]"
+              >
+                <div className="space-y-4">
+                  <div className="relative aspect-video rounded-2xl overflow-hidden shadow-sm border border-gray-100 dark:border-[#3A3632]">
+                    <img 
+                      src={formatImageSrc(apiResult?.image)} 
+                      alt="Original" 
+                      className="w-full h-full object-cover"
+                      referrerPolicy="no-referrer"
+                    />
+                    <div className="absolute top-4 left-4 bg-black/60 backdrop-blur-md text-white px-4 py-1.5 rounded-full text-[10px] font-black uppercase tracking-widest">
+                       Original Space
+                    </div>
+                  </div>
+                </div>
+                <div className="space-y-4">
+                  <div className="relative aspect-video rounded-2xl overflow-hidden shadow-sm border border-gray-100 dark:border-[#3A3632]">
+                    <img 
+                      src={formatImageSrc(activeImage)} 
+                      alt="Redesign" 
+                      className="w-full h-full object-cover"
+                      referrerPolicy="no-referrer"
+                    />
+                    <div className="absolute top-4 left-4 bg-[#B3541E] text-white px-4 py-1.5 rounded-full text-[10px] font-black uppercase tracking-widest">
+                       Vastu Redesign
+                    </div>
+                  </div>
+                </div>
+              </div>
+
+              <div className="mt-10 flex items-center justify-center gap-8">
+                 <div className="flex flex-col items-center">
+                    <div className="w-10 h-10 rounded-full bg-[#B3541E]/10 flex items-center justify-center text-[#B3541E] mb-2 font-bold text-sm">1</div>
+                    <p className="text-[10px] font-bold uppercase tracking-widest text-gray-400 dark:text-[#6B6460]">Captured Vision</p>
+                 </div>
+                 <div className="w-20 h-[1px] bg-gray-200 dark:bg-[#3A3632] mb-6"></div>
+                 <div className="flex flex-col items-center">
+                    <div className="w-10 h-10 rounded-full bg-[#B3541E]/10 flex items-center justify-center text-[#B3541E] mb-2 font-bold text-sm">2</div>
+                    <p className="text-[10px] font-bold uppercase tracking-widest text-gray-400 dark:text-[#6B6460]">AI Synthesized</p>
+                 </div>
+                 <div className="w-20 h-[1px] bg-gray-200 dark:bg-[#3A3632] mb-6"></div>
+                 <div className="flex flex-col items-center">
+                    <div className="w-10 h-10 rounded-full bg-[#B3541E] flex items-center justify-center text-white mb-2 font-bold text-sm">3</div>
+                    <p className="text-[10px] font-bold uppercase tracking-widest text-[#B3541E]">Vastu Compliant</p>
+                 </div>
+              </div>
             </div>
           </div>
         </div>
       )}
-      
+
       <style>{`
         @media print {
           body { -webkit-print-color-adjust: exact; print-color-adjust: exact; }
           .print\\:hidden { display: none !important; }
         }
+        .no-scrollbar::-webkit-scrollbar { display: none; }
+        .no-scrollbar { -ms-overflow-style: none; scrollbar-width: none; }
       `}</style>
     </div>
   );

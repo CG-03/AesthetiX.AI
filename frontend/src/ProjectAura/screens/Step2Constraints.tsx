@@ -130,7 +130,7 @@ export default function Step2Constraints({ onNext, onBack, onDataChange, showToa
   const pct = ((budget - minBudget) / (maxBudget - minBudget)) * 100;
 
   return (
-    <div className="min-h-screen bg-[#FBFBF9] font-sans text-[#1F1F1F] flex flex-col">
+    <div className="min-h-screen bg-[#FBFBF9] dark:bg-[#0F0E0D] font-sans text-[#1F1F1F] dark:text-[#F5F0E8] flex flex-col transition-colors duration-300">
       <TopNavigation variant="onboarding" title="Tell us about your constraints." />
 
       <main className="flex-1 w-full max-w-3xl mx-auto px-6 py-10 flex flex-col">
@@ -142,7 +142,7 @@ export default function Step2Constraints({ onNext, onBack, onDataChange, showToa
         </div>
         <StepIndicator currentStep={2} totalSteps={3} variant="full" />
 
-        <div className="bg-white rounded-[2rem] p-8 md:p-10 shadow-[0_8px_30px_rgb(0,0,0,0.03)] border border-gray-100 mt-8 space-y-10">
+        <div className="bg-white dark:bg-[#1A1816] rounded-[2rem] p-8 md:p-10 shadow-[0_8px_30px_rgb(0,0,0,0.03)] border border-gray-100 dark:border-[#3A3632] mt-8 space-y-10 transition-colors">
 
           {/* Residential Status */}
           <div>
@@ -152,8 +152,8 @@ export default function Step2Constraints({ onNext, onBack, onDataChange, showToa
                 onClick={() => { setOwnership('own'); onDataChange?.({ ownership: 'own', location, lat, lng, budget }); }}
                 className={`flex flex-col items-center justify-center gap-2 py-8 rounded-2xl border-2 font-semibold text-sm transition-all ${
                   ownership === 'own'
-                    ? 'bg-[#4A6D50] text-white border-[#4A6D50] shadow-lg shadow-[#4A6D50]/20'
-                    : 'bg-white text-gray-600 border-gray-200 hover:border-gray-300'
+                    ? 'bg-[#B3541E] text-white border-[#B3541E] shadow-lg shadow-[#B3541E]/20 dark:bg-[#B3541E]'
+                    : 'bg-white dark:bg-[#242220] text-gray-600 dark:text-[#A89F94] border-gray-200 dark:border-[#3A3632] hover:border-gray-300 dark:hover:border-[#6B6460]'
                 }`}
               >
                 <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -165,8 +165,8 @@ export default function Step2Constraints({ onNext, onBack, onDataChange, showToa
                 onClick={() => { setOwnership('rent'); onDataChange?.({ ownership: 'rent', location, lat, lng, budget }); }}
                 className={`flex flex-col items-center justify-center gap-2 py-8 rounded-2xl border-2 font-semibold text-sm transition-all ${
                   ownership === 'rent'
-                    ? 'bg-[#4A6D50] text-white border-[#4A6D50] shadow-lg shadow-[#4A6D50]/20'
-                    : 'bg-white text-gray-600 border-gray-200 hover:border-gray-300'
+                    ? 'bg-[#B3541E] text-white border-[#B3541E] shadow-lg shadow-[#B3541E]/20 dark:bg-[#B3541E]'
+                    : 'bg-white dark:bg-[#242220] text-gray-600 dark:text-[#A89F94] border-gray-200 dark:border-[#3A3632] hover:border-gray-300 dark:hover:border-[#6B6460]'
                 }`}
               >
                 <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -181,7 +181,7 @@ export default function Step2Constraints({ onNext, onBack, onDataChange, showToa
           <div className="relative" ref={dropdownRef}>
             <p className="text-[10px] font-bold tracking-widest uppercase text-gray-500 mb-4">Preferred Location</p>
             <div className="relative">
-              <MapPin size={16} className={`absolute left-4 top-1/2 -translate-y-1/2 transition-colors ${isSearching ? 'text-[#4A6D50] animate-pulse' : 'text-gray-400'}`} />
+              <MapPin size={16} className={`absolute left-4 top-1/2 -translate-y-1/2 transition-colors ${isSearching ? 'text-[#B3541E] animate-pulse' : 'text-gray-400 dark:text-gray-500'}`} />
               <input
                 type="text"
                 value={location}
@@ -190,15 +190,15 @@ export default function Step2Constraints({ onNext, onBack, onDataChange, showToa
                   onDataChange?.({ ownership, location: e.target.value, lat: null, lng: null, budget }); 
                 }}
                 placeholder="Search city in India (e.g. Mumbai)"
-                className="w-full bg-[#F8F8F7] border border-gray-200 rounded-2xl pl-10 pr-28 py-3.5 text-sm text-gray-700 placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-[#4A6D50]/30 focus:border-[#4A6D50] transition-all"
+                className="w-full bg-[#F8F8F7] dark:bg-[#242220]/50 border border-gray-200 dark:border-[#3A3632] rounded-2xl pl-10 pr-28 py-3.5 text-sm text-gray-700 dark:text-[#F5F0E8] placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-[#B3541E]/30 focus:border-[#B3541E] transition-colors"
               />
               <button 
                 onClick={handleDetectLocation}
                 disabled={isDetecting}
-                className="absolute right-2 top-1/2 -translate-y-1/2 flex items-center gap-1.5 bg-[#F0F0EE] text-gray-600 text-xs font-semibold px-3 py-1.5 rounded-xl hover:bg-gray-200 transition-colors disabled:opacity-50"
+                className="absolute right-2 top-1/2 -translate-y-1/2 flex items-center gap-1.5 bg-[#F0F0EE] dark:bg-[#2E2B28] text-gray-600 dark:text-[#A89F94] text-xs font-semibold px-3 py-1.5 rounded-xl hover:bg-gray-200 dark:hover:bg-[#3A3632] transition-colors disabled:opacity-50"
               >
                 {isDetecting ? (
-                  <Loader2 size={12} className="animate-spin text-[#4A6D50]" />
+                  <Loader2 size={12} className="animate-spin text-[#B3541E]" />
                 ) : (
                   <Navigation size={12} /> 
                 )}
@@ -208,16 +208,16 @@ export default function Step2Constraints({ onNext, onBack, onDataChange, showToa
 
             {/* Suggestions Dropdown */}
             {showDropdown && (suggestions.length > 0) && (
-              <div className="absolute z-50 left-0 right-0 mt-2 bg-white border border-gray-100 rounded-2xl shadow-xl overflow-hidden animate-in fade-in slide-in-from-top-2 duration-200">
+              <div className="absolute z-50 left-0 right-0 mt-2 bg-[#1A1816] border border-[#3A3632] rounded-2xl shadow-xl overflow-hidden animate-in fade-in slide-in-from-top-2 duration-200">
                 {suggestions.map((sug, idx) => (
                   <button
                     key={idx}
                     onClick={() => handleSelectSuggestion(sug)}
-                    className="w-full flex items-center gap-3 px-5 py-4 text-left hover:bg-gray-50 transition-colors border-b border-gray-50 last:border-0 group"
+                    className="w-full flex items-center gap-3 px-5 py-4 text-left hover:bg-[#242220] transition-colors border-b border-[#3A3632]/50 last:border-0 group"
                   >
-                    <Search size={14} className="text-gray-300 group-hover:text-[#4A6D50] transition-colors" />
+                    <Search size={14} className="text-gray-500 group-hover:text-[#B3541E] transition-colors" />
                     <div>
-                      <p className="text-sm font-bold text-gray-800">
+                      <p className="text-sm font-bold text-gray-100">
                         {sug.display_name.split(',')[0]}
                       </p>
                       <p className="text-[10px] text-gray-400 font-medium uppercase tracking-wider">
@@ -230,7 +230,7 @@ export default function Step2Constraints({ onNext, onBack, onDataChange, showToa
             )}
             
             {showDropdown && suggestions.length === 0 && location.length >= 3 && !isSearching && !isDetecting && (
-              <div className="absolute z-50 left-0 right-0 mt-2 bg-white border border-gray-100 rounded-2xl shadow-xl p-6 text-center animate-in fade-in slide-in-from-top-2">
+              <div className="absolute z-50 left-0 right-0 mt-2 bg-[#1A1816] border border-[#3A3632] rounded-2xl shadow-xl p-6 text-center animate-in fade-in slide-in-from-top-2">
                 <p className="text-sm font-medium text-gray-400 italic">No results found for "{location}"</p>
               </div>
             )}
@@ -240,14 +240,14 @@ export default function Step2Constraints({ onNext, onBack, onDataChange, showToa
           <div>
             <div className="flex items-center justify-between mb-4">
               <p className="text-[10px] font-bold tracking-widest uppercase text-gray-500">Monthly Budget</p>
-              <span className="bg-[#4A6D50] text-white text-xs font-bold px-3 py-1 rounded-full">
+              <span className="bg-[#B3541E] text-white text-xs font-bold px-3 py-1 rounded-full">
                 up to ${budget.toLocaleString()}
               </span>
             </div>
             <div className="relative mb-3">
-              <div className="w-full h-1.5 bg-gray-200 rounded-full">
+              <div className="w-full h-1.5 bg-gray-200 dark:bg-[#242220] rounded-full overflow-hidden">
                 <div
-                  className="h-full bg-[#4A6D50] rounded-full transition-all"
+                  className="h-full bg-[#B3541E] rounded-full transition-all"
                   style={{ width: `${pct}%` }}
                 />
               </div>
@@ -263,7 +263,7 @@ export default function Step2Constraints({ onNext, onBack, onDataChange, showToa
               />
               {/* Thumb */}
               <div
-                className="absolute top-1/2 -translate-y-1/2 w-5 h-5 bg-[#4A6D50] rounded-full shadow-lg border-2 border-white pointer-events-none transition-all"
+                className="absolute top-1/2 -translate-y-1/2 w-5 h-5 bg-[#B3541E] rounded-full shadow-lg border-2 border-white pointer-events-none transition-all"
                 style={{ left: `calc(${pct}% - 10px)` }}
               />
             </div>
@@ -274,7 +274,7 @@ export default function Step2Constraints({ onNext, onBack, onDataChange, showToa
           </div>
 
           {/* Aura Promise */}
-          <div className="flex items-center gap-4 bg-[#FFF8F5] border border-[#FFE4D4] rounded-2xl overflow-hidden">
+          <div className="flex items-center gap-4 bg-[#FFF8F5] dark:bg-orange-950/20 border border-[#FFE4D4] dark:border-orange-900/30 rounded-2xl overflow-hidden transition-colors">
             <img
               src="https://images.unsplash.com/photo-1586023492125-27b2c045efd7?w=200&h=150&fit=crop"
               alt="Aura Promise"
@@ -294,13 +294,13 @@ export default function Step2Constraints({ onNext, onBack, onDataChange, showToa
       </main>
 
       {/* Footer */}
-      <footer className="w-full py-6 px-8 flex items-center justify-between border-t border-gray-100 bg-[#FBFBF9]">
-        <button onClick={onBack} className="flex items-center gap-2 text-sm font-semibold text-gray-500 hover:text-[#1F1F1F] transition-colors">
+      <footer className="w-full py-6 px-8 flex items-center justify-between border-t border-gray-100 dark:border-[#3A3632] bg-[#FBFBF9] dark:bg-[#1A1816] transition-colors">
+        <button onClick={onBack} className="flex items-center gap-2 text-sm font-semibold text-gray-500 dark:text-[#A89F94] hover:text-[#1F1F1F] dark:hover:text-[#F5F0E8] transition-colors">
           <ArrowLeft size={16} /> Back
         </button>
         <button
           onClick={onNext}
-          className="bg-[#4A6D50] text-white px-8 py-3.5 rounded-xl font-semibold text-sm flex items-center gap-2 hover:bg-[#3A5640] transition-colors shadow-lg shadow-[#4A6D50]/20"
+          className="bg-[#B3541E] text-white px-8 py-3.5 rounded-xl font-semibold text-sm flex items-center gap-2 hover:bg-[#8E4318] transition-colors shadow-lg shadow-[#B3541E]/20"
         >
           Next Step <ArrowRight size={16} />
         </button>

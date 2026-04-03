@@ -37,22 +37,22 @@ export default function SavedProducts({ onNavigate, activePage }: SavedProductsP
   };
 
   return (
-    <div className="flex min-h-screen bg-[#FBFBF9] font-sans text-[#1F1F1F]">
+    <div className="flex min-h-screen bg-[#FBFBF9] dark:bg-[#0F0E0D] font-sans text-[#1F1F1F] dark:text-[#F5F0E8] transition-colors duration-300">
       <Sidebar activePage={activePage} onNavigate={onNavigate} />
 
       <div className="flex-1 ml-56">
         {/* Top Bar */}
-        <header className="sticky top-0 z-30 bg-[#FBFBF9] border-b border-gray-100 px-8 py-5 flex items-center justify-between">
+        <header className="sticky top-0 z-30 bg-[#FBFBF9] dark:bg-[#1A1816] border-b border-gray-100 dark:border-[#3A3632] px-8 py-5 flex items-center justify-between transition-colors">
           <h1 className="text-xl font-bold tracking-tight">Saved Products</h1>
           <div className="flex items-center gap-3">
             <div className="relative">
-              <Search size={15} className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" />
+              <Search size={15} className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400 dark:text-[#6B6460]" />
               <input
                 placeholder="Search products..."
-                className="bg-white border border-gray-200 rounded-xl pl-9 pr-4 py-2 text-sm text-gray-700 placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-[#4A6D50]/30 w-56 transition-all"
+                className="bg-white dark:bg-[#242220] border border-gray-200 dark:border-[#3A3632] rounded-xl pl-9 pr-4 py-2 text-sm text-gray-700 dark:text-[#F5F0E8] placeholder-gray-400 dark:placeholder-[#6B6460] focus:outline-none focus:ring-2 focus:ring-[#B3541E]/30 w-56 transition-all"
               />
             </div>
-            <button className="flex items-center gap-2 bg-white border border-gray-200 rounded-xl px-4 py-2 text-sm font-medium text-gray-600 hover:bg-gray-50 transition-colors">
+            <button className="flex items-center gap-2 bg-white dark:bg-[#242220] border border-gray-200 dark:border-[#3A3632] rounded-xl px-4 py-2 text-sm font-medium text-gray-600 dark:text-[#A89F94] hover:bg-gray-50 dark:hover:bg-[#2E2B28] transition-colors">
               <SlidersHorizontal size={15} /> Filter
             </button>
           </div>
@@ -67,8 +67,8 @@ export default function SavedProducts({ onNavigate, activePage }: SavedProductsP
                 onClick={() => setActiveCategory(cat)}
                 className={`px-5 py-2 rounded-full text-sm font-semibold transition-all ${
                   activeCategory === cat
-                    ? 'bg-[#4A6D50] text-white shadow-md shadow-[#4A6D50]/20'
-                    : 'bg-white border border-gray-200 text-gray-500 hover:border-gray-300'
+                    ? 'bg-[#B3541E] text-white shadow-md shadow-[#B3541E]/20'
+                    : 'bg-white dark:bg-[#242220] border border-gray-200 dark:border-[#3A3632] text-gray-500 dark:text-[#A89F94] hover:border-gray-300 dark:hover:border-[#6B6460]'
                 }`}
               >
                 {cat}
@@ -81,7 +81,7 @@ export default function SavedProducts({ onNavigate, activePage }: SavedProductsP
             {filtered.map(product => (
               <div
                 key={product.id}
-                className="bg-white rounded-[1.5rem] border border-gray-100 overflow-hidden hover:shadow-md transition-shadow flex flex-col group"
+                className="bg-white dark:bg-[#1A1816] rounded-[1.5rem] border border-gray-100 dark:border-[#3A3632] overflow-hidden hover:shadow-md dark:hover:shadow-[#B3541E]/5 transition-shadow flex flex-col group"
               >
                 {/* Image */}
                 <div className="relative aspect-[4/3] bg-gray-50 overflow-hidden">
@@ -94,11 +94,11 @@ export default function SavedProducts({ onNavigate, activePage }: SavedProductsP
                   {/* Save Button */}
                   <button
                     onClick={() => toggleSave(product.id)}
-                    className="absolute top-3 right-3 w-8 h-8 bg-white/90 backdrop-blur-sm rounded-full flex items-center justify-center shadow-sm hover:scale-110 transition-transform"
+                    className="absolute top-3 right-3 w-8 h-8 bg-white/90 dark:bg-[#1A1816]/90 backdrop-blur-sm rounded-full flex items-center justify-center shadow-sm hover:scale-110 transition-transform"
                   >
                     <Heart
                       size={14}
-                      className={savedState[product.id] ? 'fill-red-500 text-red-500' : 'text-gray-400'}
+                      className={savedState[product.id] ? 'fill-[#B3541E] text-[#B3541E]' : 'text-gray-400 dark:text-[#6B6460]'}
                     />
                   </button>
                 </div>
@@ -106,14 +106,14 @@ export default function SavedProducts({ onNavigate, activePage }: SavedProductsP
                 {/* Info */}
                 <div className="p-4 flex flex-col flex-1">
                   <div className="flex items-start justify-between mb-1">
-                    <h4 className="font-bold text-[14px] text-[#1F1F1F] tracking-tight leading-snug">{product.name}</h4>
-                    <span className="font-bold text-[#4A6D50] text-[13px] shrink-0 ml-2">${product.price.toLocaleString()}</span>
+                    <h4 className="font-bold text-[14px] text-[#1F1F1F] dark:text-[#F5F0E8] tracking-tight leading-snug">{product.name}</h4>
+                    <span className="font-bold text-[#B3541E] text-[13px] shrink-0 ml-2">${product.price.toLocaleString()}</span>
                   </div>
-                  <p className="text-[11px] text-gray-400 mb-1">{product.brand}</p>
-                  <span className="inline-block bg-gray-100 text-gray-500 text-[10px] font-bold uppercase tracking-wider px-2 py-0.5 rounded-full w-fit mb-4">
+                  <p className="text-[11px] text-gray-400 dark:text-[#6B6460] mb-1">{product.brand}</p>
+                  <span className="inline-block bg-gray-100 dark:bg-[#242220] text-gray-500 dark:text-[#A89F94] text-[10px] font-bold uppercase tracking-wider px-2 py-0.5 rounded-full w-fit mb-4">
                     {product.category}
                   </span>
-                  <button className="mt-auto w-full bg-[#E5E8E6] text-[#4A6D50] py-2.5 rounded-xl text-xs font-bold uppercase tracking-wide transition-colors hover:bg-[#4A6D50] hover:text-white flex items-center justify-center gap-2">
+                  <button className="mt-auto w-full bg-[#E5E8E6] dark:bg-[#B3541E]/10 text-[#B3541E] py-2.5 rounded-xl text-xs font-bold uppercase tracking-wide transition-colors hover:bg-[#B3541E] hover:text-white flex items-center justify-center gap-2">
                     <ShoppingBag size={13} /> Buy Now
                   </button>
                 </div>
@@ -121,12 +121,12 @@ export default function SavedProducts({ onNavigate, activePage }: SavedProductsP
             ))}
 
             {/* Add More Card */}
-            <div className="bg-white rounded-[1.5rem] border-2 border-dashed border-gray-200 flex flex-col items-center justify-center p-8 text-center hover:border-[#4A6D50] hover:bg-[#4A6D50]/5 transition-all cursor-pointer group aspect-auto min-h-[280px]">
-              <div className="w-10 h-10 rounded-full bg-gray-100 group-hover:bg-[#4A6D50]/20 flex items-center justify-center mb-3 transition-colors">
-                <Plus size={20} className="text-gray-400 group-hover:text-[#4A6D50]" />
+            <div className="bg-white dark:bg-[#1A1816] rounded-[1.5rem] border-2 border-dashed border-gray-200 dark:border-[#3A3632] flex flex-col items-center justify-center p-8 text-center hover:border-[#B3541E] hover:bg-[#B3541E]/5 dark:hover:bg-[#B3541E]/10 transition-all cursor-pointer group aspect-auto min-h-[280px]">
+              <div className="w-10 h-10 rounded-full bg-gray-100 dark:bg-[#242220] group-hover:bg-[#B3541E]/20 flex items-center justify-center mb-3 transition-colors">
+                <Plus size={20} className="text-gray-400 dark:text-[#6B6460] group-hover:text-[#B3541E]" />
               </div>
-              <p className="font-semibold text-sm text-gray-500 group-hover:text-[#4A6D50] transition-colors">Explore More</p>
-              <p className="text-[11px] text-gray-400 mt-1">Browse the full catalog</p>
+              <p className="font-semibold text-sm text-gray-500 dark:text-[#A89F94] group-hover:text-[#B3541E] transition-colors">Explore More</p>
+              <p className="text-[11px] text-gray-400 dark:text-[#6B6460] mt-1">Browse the full catalog</p>
             </div>
           </div>
         </main>

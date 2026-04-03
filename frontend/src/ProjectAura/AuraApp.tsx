@@ -23,13 +23,13 @@ const CartSidebar = ({ isOpen, onClose, items, onRemove }: { isOpen: boolean, on
         className={`fixed inset-0 bg-black/40 backdrop-blur-sm z-[1000] transition-opacity duration-500 ${isOpen ? 'opacity-100' : 'opacity-0 pointer-events-none'}`} 
         onClick={onClose}
       />
-      <div className={`fixed top-0 right-0 h-full w-full max-w-md bg-white dark:bg-gray-900 shadow-2xl z-[1001] transition-transform duration-500 transform ${isOpen ? 'translate-x-0' : 'translate-x-full'}`}>
+      <div className={`fixed top-0 right-0 h-full w-full max-w-md bg-white dark:bg-[#1A1816] shadow-2xl z-[1001] transition-transform duration-500 transform ${isOpen ? 'translate-x-0' : 'translate-x-full'} border-l border-transparent dark:border-[#3A3632]`}>
         <div className="flex flex-col h-full">
-          <div className="p-8 border-b border-gray-100 dark:border-gray-800 flex justify-between items-center">
+          <div className="p-8 border-b border-gray-100 dark:border-[#3A3632] flex justify-between items-center">
             <h2 className="text-2xl font-bold flex items-center gap-3">
-              <ShoppingCart className="text-[#4A6D50]" /> Your Cart
+              <ShoppingCart className="text-[#B3541E]" /> Your Cart
             </h2>
-            <button onClick={onClose} className="p-2 hover:bg-gray-100 dark:hover:bg-gray-800 rounded-xl transition-colors">
+            <button onClick={onClose} className="p-2 hover:bg-gray-100 dark:hover:bg-[#2E2B28] rounded-xl transition-colors">
               <X size={20} />
             </button>
           </div>
@@ -37,22 +37,22 @@ const CartSidebar = ({ isOpen, onClose, items, onRemove }: { isOpen: boolean, on
           <div className="flex-1 overflow-y-auto p-8 space-y-6">
             {items.length === 0 ? (
               <div className="h-full flex flex-col items-center justify-center text-center">
-                <div className="w-16 h-16 bg-gray-50 dark:bg-gray-800 rounded-full flex items-center justify-center text-gray-300 mb-4">
+                <div className="w-16 h-16 bg-gray-50 dark:bg-[#242220] rounded-full flex items-center justify-center text-gray-300 dark:text-[#6B6460] mb-4">
                   <ShoppingCart size={24} />
                 </div>
-                <p className="font-medium text-gray-400 italic">Your cart is currently empty.</p>
+                <p className="font-medium text-gray-400 dark:text-[#6B6460] italic">Your cart is currently empty.</p>
               </div>
             ) : (
               items.map((item, idx) => (
                 <div key={`${item.id}-${idx}`} className="flex gap-4 group">
-                  <div className="w-20 h-20 bg-gray-50 dark:bg-gray-800 rounded-xl overflow-hidden border border-gray-100 dark:border-gray-800">
+                  <div className="w-20 h-20 bg-gray-50 dark:bg-[#242220] rounded-xl overflow-hidden border border-gray-100 dark:border-[#3A3632]">
                     <img src={item.image} alt={item.name} className="w-full h-full object-cover" />
                   </div>
                   <div className="flex-1 min-w-0">
                     <h4 className="font-bold text-sm truncate">{item.name}</h4>
-                    <p className="text-xs text-gray-400 mb-2 truncate">{item.brand || 'VastuVision Select'}</p>
+                    <p className="text-xs text-gray-400 dark:text-[#6B6460] mb-2 truncate">{item.brand || 'VastuVision Select'}</p>
                     <div className="flex items-center justify-between">
-                      <span className="font-bold text-[#4A6D50] text-sm">${item.price?.toLocaleString()}</span>
+                      <span className="font-bold text-[#B3541E] text-sm">${item.price?.toLocaleString()}</span>
                       <button 
                         onClick={() => onRemove(item.id)}
                         className="text-red-400 hover:text-red-500 transition-colors p-1"
@@ -66,14 +66,14 @@ const CartSidebar = ({ isOpen, onClose, items, onRemove }: { isOpen: boolean, on
             )}
           </div>
 
-          <div className="p-8 bg-gray-50 dark:bg-gray-800/50 border-t border-gray-100 dark:border-gray-800">
+          <div className="p-8 bg-gray-50 dark:bg-[#0F0E0D]/50 border-t border-gray-100 dark:border-[#3A3632]">
             <div className="flex justify-between items-center mb-6">
-              <span className="text-gray-500 font-medium">Total Investment</span>
+              <span className="text-gray-500 dark:text-[#A89F94] font-medium">Total Investment</span>
               <span className="text-2xl font-bold tracking-tight">${total.toLocaleString()}</span>
             </div>
             <button 
               disabled={items.length === 0}
-              className="w-full bg-[#4A6D50] text-white py-4 rounded-2xl font-bold text-sm uppercase tracking-widest shadow-xl shadow-[#4A6D50]/20 hover:bg-[#3A5640] transition-all active:scale-95 disabled:opacity-50 disabled:active:scale-100"
+              className="w-full bg-[#B3541E] text-white py-4 rounded-2xl font-bold text-sm uppercase tracking-widest shadow-xl shadow-[#B3541E]/20 hover:bg-[#8E4318] transition-all active:scale-95 disabled:opacity-50 disabled:active:scale-100"
             >
               Checkout Project Items
             </button>
@@ -85,18 +85,18 @@ const CartSidebar = ({ isOpen, onClose, items, onRemove }: { isOpen: boolean, on
 };
 
 const Toast = ({ message, type, onClose }: { message: string, type: 'success' | 'info', onClose: () => void }) => (
-  <div className="fixed top-8 left-1/2 -translate-x-1/2 z-[1000] flex items-center gap-3 bg-white dark:bg-gray-900 border border-gray-100 dark:border-gray-800 rounded-2xl px-6 py-4 shadow-2xl animate-in fade-in slide-in-from-top-8">
+  <div className="fixed top-8 left-1/2 -translate-x-1/2 z-[1000] flex items-center gap-3 bg-white dark:bg-[#1A1816] border border-gray-100 dark:border-[#3A3632] rounded-2xl px-6 py-4 shadow-2xl animate-in fade-in slide-in-from-top-8">
     {type === 'success' ? (
       <div className="w-8 h-8 rounded-full bg-green-500/10 flex items-center justify-center text-green-500">
         <CheckCircle2 size={18} />
       </div>
     ) : (
-      <div className="w-8 h-8 rounded-full bg-[#4A6D50]/10 flex items-center justify-center text-[#4A6D50]">
+      <div className="w-8 h-8 rounded-full bg-[#B3541E]/10 flex items-center justify-center text-[#B3541E]">
         <Info size={18} />
       </div>
     )}
-    <p className="text-sm font-bold dark:text-white">{message}</p>
-    <button onClick={onClose} className="ml-4 text-gray-400 hover:text-gray-600 dark:hover:text-gray-300">
+    <p className="text-sm font-bold dark:text-[#F5F0E8]">{message}</p>
+    <button onClick={onClose} className="ml-4 text-gray-400 hover:text-gray-600 dark:hover:text-[#A89F94]">
       <X size={16} />
     </button>
   </div>
@@ -209,6 +209,11 @@ export default function AuraApp() {
   };
 
   const handleGenerate = async () => {
+    if (!designData.image) {
+      showToast('Please upload a room photo first.', 'info');
+      setCurrentRoute('step1');
+      return;
+    }
     setIsGenerating(true);
     
     try {
@@ -250,7 +255,7 @@ export default function AuraApp() {
       // --- Object Detection (Phase 1) ---
       detectObjects(result.redesignedImage, result.text);
 
-      // Save to History (Text metadata only to avoid QuotaExceededError)
+      // Save to History
       try {
         const history = localStorage.getItem('vastu_saved_designs');
         const parsedHistory = history ? JSON.parse(history) : [];
@@ -261,12 +266,13 @@ export default function AuraApp() {
           style: designData.style,
           location: designData.location,
           budget: designData.budget,
-          text: result.text // Save only text analysis, NO base64 images
+          ownership: designData.ownership,
+          direction: designData.vastu,
+          text: result.text
         };
         localStorage.setItem('vastu_saved_designs', JSON.stringify([newDesign, ...parsedHistory]));
       } catch (e) {
-        console.warn('Storage full or error — clearing old designs');
-        localStorage.removeItem('vastu_saved_designs');
+        console.warn('Storage error:', e);
       }
 
       setCurrentRoute('project-workspace');
@@ -300,25 +306,32 @@ export default function AuraApp() {
 
   const handleOpenSavedDesign = (design: any) => {
     setApiResult({
-      text: design.text,
-      image: "", // Images no longer stored in history
+      text: design.text || "",
+      image: "", 
       redesignedImage: "", 
       nighttimeImage: null,
       products: [],
       depthMapImage: null
     });
-    setDesignData(prev => ({
-      ...prev,
-      roomType: design.roomType,
-      style: design.style,
-      location: design.location || prev.location,
-      budget: design.budget || prev.budget
-    }));
+    
+    setDesignData({
+      image: null,
+      vastu: design.direction || 'North',
+      ownership: design.ownership || 'own',
+      location: design.location || 'Mumbai, India',
+      lat: null,
+      lng: null,
+      budget: design.budget || 4500,
+      style: design.style || 'Modern',
+      roomType: design.roomType || 'Bedroom',
+    });
+
+    showToast(`Loaded: ${design.roomType || 'Project'} from ${design.date}`, 'success');
     setCurrentRoute('project-workspace');
   };
 
   return (
-    <div className="min-h-screen bg-[#FBFBF9] dark:bg-[#121212] font-sans transition-colors duration-300 text-[#1F1F1F] dark:text-white">
+    <div className="min-h-screen bg-[#FBFBF9] dark:bg-[#0F0E0D] font-sans transition-colors duration-300 text-[#1F1F1F] dark:text-[#F5F0E8]">
       {currentRoute === 'dashboard' && (
         <Dashboard 
           onNavigate={handleNavigate} 
@@ -378,6 +391,7 @@ export default function AuraApp() {
           onBack={() => setCurrentRoute('dashboard')} 
           apiResult={apiResult}
           budget={designData.budget}
+          location={designData.location}
           cartItems={cartItems}
           onAddToCart={addToCart}
           onOpenCart={() => setIsCartOpen(true)}
@@ -427,9 +441,9 @@ export default function AuraApp() {
       )}
 
       {isDetectingObjects && (
-        <div className="fixed bottom-8 left-8 z-[1000] flex items-center gap-3 bg-white dark:bg-gray-900 border border-gray-100 dark:border-gray-800 rounded-2xl px-6 py-4 shadow-2xl animate-in fade-in slide-in-from-bottom-8">
-          <div className="w-5 h-5 border-2 border-[#4A6D50] border-t-transparent rounded-full animate-spin" />
-          <p className="text-sm font-bold dark:text-white">Detecting interior objects...</p>
+        <div className="fixed bottom-8 left-8 z-[1000] flex items-center gap-3 bg-white dark:bg-[#1A1816] border border-gray-100 dark:border-[#3A3632] rounded-2xl px-6 py-4 shadow-2xl animate-in fade-in slide-in-from-bottom-8">
+          <div className="w-5 h-5 border-2 border-[#B3541E] border-t-transparent rounded-full animate-spin" />
+          <p className="text-sm font-bold dark:text-[#F5F0E8]">Detecting interior objects...</p>
         </div>
       )}
     </div>
