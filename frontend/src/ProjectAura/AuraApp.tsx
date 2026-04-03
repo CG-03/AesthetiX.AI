@@ -237,7 +237,8 @@ export default function AuraApp() {
       });
 
       if (!response.ok) {
-        throw new Error('Failed to analyze room');
+        const errorData = await response.json().catch(() => ({}));
+        throw new Error(errorData.details || errorData.error || 'Failed to analyze room');
       }
 
       const data = await response.json();
@@ -276,9 +277,9 @@ export default function AuraApp() {
       }
 
       setCurrentRoute('project-workspace');
-    } catch (err) {
+    } catch (err: any) {
       console.error(err);
-      alert('Failed to generate design. Check console for details.');
+      alert(`Design Generation Error: ${err.message}`);
     } finally {
       setIsGenerating(false);
     }

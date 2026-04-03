@@ -80,23 +80,34 @@ async function openrouterChat(
   messages: object[],
   extraBody: object = {}
 ): Promise<any> {
+  console.log(`[OpenRouter] Requesting model: ${model}...`);
   const response = await fetch(`${OPENROUTER_BASE_URL}/chat/completions`, {
     method: "POST",
     headers: {
       Authorization: `Bearer ${OPENROUTER_API_KEY}`,
       "Content-Type": "application/json",
-      "HTTP-Referer": "http://localhost:5000",
-      "X-Title": "Vastu AI",
+      "HTTP-Referer": "https://vastu-ai-studio.app",
+      "X-Title": "Vastu AI Designer",
     },
     body: JSON.stringify({ model, messages, ...extraBody }),
   });
 
   if (!response.ok) {
+    const status = response.status;
     const errText = await response.text();
-    throw new Error(`OpenRouter request failed [${response.status}]: ${errText}`);
+    console.error(`[OpenRouter] Error ${status}: ${errText}`);
+    
+    // Check if it's a known error type
+    let parsedErr;
+    try { parsedErr = JSON.parse(errText); } catch { /* ignore */ }
+    
+    const message = parsedErr?.error?.message || errText || "Unknown OpenRouter Error";
+    throw new Error(`OpenRouter ${status}: ${message}`);
   }
 
-  return response.json();
+  const data = await response.json();
+  console.log(`[OpenRouter] Success for model: ${model}`);
+  return data;
 }
 
 // ── POST /api/analyze ──────────────────────────────────────────────────────
@@ -221,7 +232,13 @@ REDESIGN RENDER: ${roomType || "room"}, ${style || "modern"} style interior desi
               ],
             },
           ],
-          { modalities: ["image", "text"] }
+          { 
+            // Some newer multimodal models work better with explicit response_modalities 
+            // for image generation. However,Nano Banana (2.5 flash image) uses 
+            // standard chat completions but might require this for certain features.
+            // Keeping it flexible but safer.
+            response_modalities: ["text", "image"] 
+          }
         );
 
         const message = imageData?.choices?.[0]?.message;
@@ -320,7 +337,7 @@ REDESIGN RENDER: ${roomType || "room"}, ${style || "modern"} style interior desi
 
     res.status(500).json({
       error: "AI generation failed",
-      details: msg,
+      details: msg || "An unknown error occurred during AI analysis.",
     });
   }
 });

@@ -35,7 +35,7 @@ const products = [
   { id: 4, name: 'Earthen Triptych Art', brand: 'Vastu AI Fine Arts', price: 320, image: 'https://images.unsplash.com/photo-1579783902614-a3fb3927b6a5?w=400&h=300&fit=crop' },
 ];
 
-export default function ProjectWorkspace({ onBack, apiResult, budget = 4500, cartItems, onAddToCart, onOpenCart, detectedObjects = [], isDetectingObjects = false }: ProjectWorkspaceProps) {
+export default function ProjectWorkspace({ onBack, apiResult, budget = 4500, cartItems, onAddToCart, onOpenCart, detectedObjects = [], isDetectingObjects = false, location }: ProjectWorkspaceProps) {
   const [renderMode, setRenderMode] = useState<'original' | 'daylight' | 'nighttime'>('daylight');
   const [costMode, setCostMode] = useState<'retail' | 'custom'>('retail');
   const [selectedProduct, setSelectedProduct] = useState<any>(null);
@@ -121,7 +121,10 @@ export default function ProjectWorkspace({ onBack, apiResult, budget = 4500, car
     }
   };
 
-  const handleLabelClick = async (obj: any) => {
+  const handleLabelClick = async (e: React.MouseEvent, obj: any) => {
+    e.preventDefault();
+    e.stopPropagation();
+    
     setSelectedObjectId(obj.id);
     setActiveLabel(obj);
     setShowProductPopup(true);
@@ -288,7 +291,7 @@ export default function ProjectWorkspace({ onBack, apiResult, budget = 4500, car
                         }}
                       >
                         <button
-                          onClick={() => handleLabelClick(obj)}
+                          onClick={(e) => handleLabelClick(e, obj)}
                           className={`group flex items-center gap-2 px-4 py-2 rounded-full border-2 transition-all duration-300 shadow-lg whitespace-nowrap
                             ${isSelected
                               ? 'bg-[#B3541E] border-[#B3541E] text-white scale-110 shadow-[0_0_20px_rgba(179,84,30,0.6)]'
@@ -562,26 +565,44 @@ export default function ProjectWorkspace({ onBack, apiResult, budget = 4500, car
                 </div>
               </div>
 
+              {/* Visual Specifics / Details */}
+              <div className="grid grid-cols-3 gap-4 mb-8">
+                <div className="p-4 bg-gray-50 dark:bg-[#0F0E0D]/50 rounded-2xl border border-gray-100 dark:border-[#3A3632]">
+                  <p className="text-[10px] font-bold text-gray-400 dark:text-[#6B6460] uppercase tracking-widest mb-1">Category</p>
+                  <p className="text-sm font-bold text-[#1F1F1F] dark:text-[#F5F0E8] capitalize">{activeLabel.category || 'Interior Element'}</p>
+                </div>
+                <div className="p-4 bg-gray-50 dark:bg-[#0F0E0D]/50 rounded-2xl border border-gray-100 dark:border-[#3A3632]">
+                  <p className="text-[10px] font-bold text-gray-400 dark:text-[#6B6460] uppercase tracking-widest mb-1">Aesthetic</p>
+                  <p className="text-sm font-bold text-[#1F1F1F] dark:text-[#F5F0E8] capitalize">{activeLabel.style || 'Matching'}</p>
+                </div>
+                <div className="p-4 bg-gray-50 dark:bg-[#0F0E0D]/50 rounded-2xl border border-gray-100 dark:border-[#3A3632]">
+                  <p className="text-[10px] font-bold text-gray-400 dark:text-[#6B6460] uppercase tracking-widest mb-1">Palette</p>
+                  <p className="text-sm font-bold text-[#1F1F1F] dark:text-[#F5F0E8] capitalize">{activeLabel.color || 'Dynamic'}</p>
+                </div>
+              </div>
+
               {/* Shopping Platforms */}
               <div className="mb-8">
-                <h3 className="text-xs font-bold text-gray-400 dark:text-gray-500 uppercase tracking-widest mb-4">Direct Sourcing Platforms</h3>
+                <h3 className="text-xs font-bold text-gray-400 dark:text-gray-500 uppercase tracking-widest mb-4 flex items-center gap-2">
+                   <ExternalLink size={14} /> Shoppable Platforms
+                </h3>
                 <div className="grid grid-cols-2 sm:grid-cols-3 gap-3">
-                  <a href={searchResult?.platformLinks?.amazon} target="_blank" rel="noopener noreferrer" className="flex items-center justify-center gap-2 py-3.5 rounded-xl bg-[#F3D14D]/10 border border-[#F3D14D]/30 text-[#846C00] font-bold text-[11px] hover:bg-[#F3D14D] hover:text-black transition-all">
+                  <a href={searchResult?.platformLinks?.amazon || "#"} target="_blank" rel="noopener noreferrer" className={`flex items-center justify-center gap-2 py-3.5 rounded-xl border font-bold text-[11px] transition-all ${searchResult?.platformLinks?.amazon ? 'bg-[#F3D14D]/10 border-[#F3D14D]/30 text-[#846C00] hover:bg-[#F3D14D] hover:text-black' : 'bg-gray-100 text-gray-400 border-gray-200 cursor-not-allowed text-opacity-50'}`}>
                     Amazon India
                   </a>
-                  <a href={searchResult?.platformLinks?.flipkart} target="_blank" rel="noopener noreferrer" className="flex items-center justify-center gap-2 py-3.5 rounded-xl bg-[#2874F0]/10 border border-[#2874F0]/30 text-[#2874F0] font-bold text-[11px] hover:bg-[#2874F0] hover:text-white transition-all">
+                  <a href={searchResult?.platformLinks?.flipkart || "#"} target="_blank" rel="noopener noreferrer" className={`flex items-center justify-center gap-2 py-3.5 rounded-xl border font-bold text-[11px] transition-all ${searchResult?.platformLinks?.flipkart ? 'bg-[#2874F0]/10 border-[#2874F0]/30 text-[#2874F0] hover:bg-[#2874F0] hover:text-white' : 'bg-gray-100 text-gray-400 border-gray-200 cursor-not-allowed'}`}>
                     Flipkart
                   </a>
-                  <a href={searchResult?.platformLinks?.pepperfry} target="_blank" rel="noopener noreferrer" className="flex items-center justify-center gap-2 py-3.5 rounded-xl bg-[#FF4F00]/10 border border-[#FF4F00]/30 text-[#FF4F00] font-bold text-[11px] hover:bg-[#FF4F00] hover:text-white transition-all">
+                  <a href={searchResult?.platformLinks?.pepperfry || "#"} target="_blank" rel="noopener noreferrer" className={`flex items-center justify-center gap-2 py-3.5 rounded-xl border font-bold text-[11px] transition-all ${searchResult?.platformLinks?.pepperfry ? 'bg-[#FF4F00]/10 border-[#FF4F00]/30 text-[#FF4F00] hover:bg-[#FF4F00] hover:text-white' : 'bg-gray-100 text-gray-400 border-gray-200 cursor-not-allowed'}`}>
                     Pepperfry
                   </a>
-                  <a href={searchResult?.platformLinks?.urbanladder} target="_blank" rel="noopener noreferrer" className="flex items-center justify-center gap-2 py-3.5 rounded-xl bg-[#B3541E]/10 border border-[#B3541E]/30 text-[#B3541E] font-bold text-[11px] hover:bg-[#B3541E] hover:text-white transition-all">
+                  <a href={searchResult?.platformLinks?.urbanladder || "#"} target="_blank" rel="noopener noreferrer" className={`flex items-center justify-center gap-2 py-3.5 rounded-xl border font-bold text-[11px] transition-all ${searchResult?.platformLinks?.urbanladder ? 'bg-[#B3541E]/10 border-[#B3541E]/30 text-[#B3541E] hover:bg-[#B3541E] hover:text-white' : 'bg-gray-100 text-gray-400 border-gray-200 cursor-not-allowed'}`}>
                     Urban Ladder
                   </a>
-                  <a href={searchResult?.platformLinks?.indiamart} target="_blank" rel="noopener noreferrer" className="flex items-center justify-center gap-2 py-3.5 rounded-xl bg-[#002F6C]/10 border border-[#002F6C]/30 text-[#002F6C] font-bold text-[11px] hover:bg-[#002F6C] hover:text-white transition-all">
+                  <a href={searchResult?.platformLinks?.indiamart || "#"} target="_blank" rel="noopener noreferrer" className={`flex items-center justify-center gap-2 py-3.5 rounded-xl border font-bold text-[11px] transition-all ${searchResult?.platformLinks?.indiamart ? 'bg-[#002F6C]/10 border-[#002F6C]/30 text-[#002F6C] hover:bg-[#002F6C] hover:text-white' : 'bg-gray-100 text-gray-400 border-gray-200 cursor-not-allowed'}`}>
                     IndiaMart
                   </a>
-                  <a href={searchResult?.platformLinks?.nearby} target="_blank" rel="noopener noreferrer" className="flex items-center justify-center gap-2 py-3.5 rounded-xl bg-[#EA4335]/10 border border-[#EA4335]/30 text-[#EA4335] font-bold text-[11px] hover:bg-[#EA4335] hover:text-white transition-all">
+                  <a href={searchResult?.platformLinks?.nearby || "#"} target="_blank" rel="noopener noreferrer" className={`flex items-center justify-center gap-2 py-3.5 rounded-xl border font-bold text-[11px] transition-all ${searchResult?.platformLinks?.nearby ? 'bg-[#EA4335]/10 border-[#EA4335]/30 text-[#EA4335] hover:bg-[#EA4335] hover:text-white' : 'bg-gray-100 text-gray-400 border-gray-200 cursor-not-allowed'}`}>
                     Nearby Stores
                   </a>
                 </div>
