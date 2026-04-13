@@ -1,0 +1,24 @@
+# Node and build artifacts
+node_modules/
+dist/
+build/
+.env
+
+# Python Virtual Environment
+**/venv/
+**/__pycache__/
+*.pyc
+
+# YOLO Weight Files (Large binaries > 100MB)
+*.pt
+*.weights
+
+# Local logs and temp files
+*.log
+tmp/
+.vscode/
+.idea/
+
+# OS specific files
+.DS_Store
+Thumbs.db
