@@ -19,8 +19,8 @@ const CartSidebar = ({ isOpen, onClose, items, onRemove }: { isOpen: boolean, on
 
   return (
     <>
-      <div 
-        className={`fixed inset-0 bg-black/40 backdrop-blur-sm z-[1000] transition-opacity duration-500 ${isOpen ? 'opacity-100' : 'opacity-0 pointer-events-none'}`} 
+      <div
+        className={`fixed inset-0 bg-black/40 backdrop-blur-sm z-[1000] transition-opacity duration-500 ${isOpen ? 'opacity-100' : 'opacity-0 pointer-events-none'}`}
         onClick={onClose}
       />
       <div className={`fixed top-0 right-0 h-full w-full max-w-md bg-white dark:bg-[#1A1816] shadow-2xl z-[1001] transition-transform duration-500 transform ${isOpen ? 'translate-x-0' : 'translate-x-full'} border-l border-transparent dark:border-[#3A3632]`}>
@@ -53,7 +53,7 @@ const CartSidebar = ({ isOpen, onClose, items, onRemove }: { isOpen: boolean, on
                     <p className="text-xs text-gray-400 dark:text-[#6B6460] mb-2 truncate">{item.brand || 'VastuVision Select'}</p>
                     <div className="flex items-center justify-between">
                       <span className="font-bold text-[#B3541E] text-sm">${item.price?.toLocaleString()}</span>
-                      <button 
+                      <button
                         onClick={() => onRemove(item.id)}
                         className="text-red-400 hover:text-red-500 transition-colors p-1"
                       >
@@ -71,7 +71,7 @@ const CartSidebar = ({ isOpen, onClose, items, onRemove }: { isOpen: boolean, on
               <span className="text-gray-500 dark:text-[#A89F94] font-medium">Total Investment</span>
               <span className="text-2xl font-bold tracking-tight">${total.toLocaleString()}</span>
             </div>
-            <button 
+            <button
               disabled={items.length === 0}
               className="w-full bg-[#B3541E] text-white py-4 rounded-2xl font-bold text-sm uppercase tracking-widest shadow-xl shadow-[#B3541E]/20 hover:bg-[#8E4318] transition-all active:scale-95 disabled:opacity-50 disabled:active:scale-100"
             >
@@ -114,7 +114,7 @@ export default function AuraApp() {
     return saved ? JSON.parse(saved) : null;
   });
   const [toast, setToast] = useState<{ message: string, type: 'success' | 'info' } | null>(null);
-  
+
   // Cart State
   const [cartItems, setCartItems] = useState<any[]>([]);
   const [isCartOpen, setIsCartOpen] = useState(false);
@@ -145,6 +145,19 @@ export default function AuraApp() {
     document.documentElement.style.fontSize = sizes[fontSize as keyof typeof sizes] || '16px';
     localStorage.setItem('vastu_fontSize', fontSize);
   }, [theme, fontSize]);
+
+  // Cleanup/Validate localStorage on load
+  React.useEffect(() => {
+    try {
+      const history = localStorage.getItem('vastu_saved_designs');
+      if (history) {
+        JSON.parse(history);
+      }
+    } catch (e) {
+      console.error('Corrupted design history detected. Clearing storage.', e);
+      localStorage.removeItem('vastu_saved_designs');
+    }
+  }, []);
 
   const showToast = (message: string, type: 'success' | 'info' = 'success') => {
     setToast({ message, type });
@@ -188,7 +201,7 @@ export default function AuraApp() {
     else if (page === 'saved-products') setCurrentRoute('saved-products');
     else if (page === 'settings') setCurrentRoute('settings');
     else if (page === 'profile') setCurrentRoute('profile');
-    else setCurrentRoute('dashboard'); 
+    else setCurrentRoute('dashboard');
   };
 
   const handleNewProject = () => {
@@ -202,7 +215,7 @@ export default function AuraApp() {
       return;
     }
     setIsGenerating(true);
-    
+
     try {
       const response = await fetch('/api/analyze', {
         method: 'POST',
@@ -237,11 +250,33 @@ export default function AuraApp() {
         products: data.products || [],
         depthMapImage: data.depthMapImage
       };
-      
+
       setApiResult(result);
 
       // --- Object Detection (Phase 1) ---
       detectObjects(result.redesignedImage, result.text);
+
+      // Save to History
+      try {
+        const history = localStorage.getItem('vastu_saved_designs');
+        const parsedHistory = history ? JSON.parse(history) : [];
+        const newDesign = {
+          id: Date.now().toString(),
+          date: new Date().toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' }),
+          roomType: designData.roomType,
+          style: designData.style,
+          location: designData.location,
+          budget: designData.budget,
+          ownership: designData.ownership,
+          direction: designData.vastu,
+          text: result.text,
+          image: result.image,
+          redesignedImage: result.redesignedImage
+        };
+        localStorage.setItem('vastu_saved_designs', JSON.stringify([newDesign, ...parsedHistory]));
+      } catch (e) {
+        console.warn('Storage error:', e);
+      }
 
       setCurrentRoute('project-workspace');
     } catch (err: any) {
@@ -275,24 +310,13 @@ export default function AuraApp() {
   const handleOpenSavedDesign = (design: any) => {
     setApiResult({
       text: design.text || "",
-      image: design.image || "", 
-      redesignedImage: design.redesignedImage || "", 
-      nighttimeImage: design.nighttimeImage || null,
+      image: design.image || "",
+      redesignedImage: design.redesignedImage || "",
+      nighttimeImage: null,
       products: [],
       depthMapImage: null
     });
-    
-    if (design.detectedObjects) {
-      setDetectedObjects(design.detectedObjects);
-    } else {
-      // If we don't have stored objects but have text/image, attempt re-detection fallback
-      if (design.redesignedImage && design.text) {
-        detectObjects(design.redesignedImage, design.text);
-      } else {
-        setDetectedObjects([]);
-      }
-    }
-    
+
     setDesignData({
       image: design.image || null,
       vastu: design.direction || 'North',
@@ -312,10 +336,10 @@ export default function AuraApp() {
   return (
     <div className="min-h-screen bg-[#FBFBF9] dark:bg-[#0F0E0D] font-sans transition-colors duration-300 text-[#1F1F1F] dark:text-[#F5F0E8]">
       {currentRoute === 'dashboard' && (
-        <Dashboard 
-          onNavigate={handleNavigate} 
-          activePage={activePage} 
-          onNewProject={handleNewProject} 
+        <Dashboard
+          onNavigate={handleNavigate}
+          activePage={activePage}
+          onNewProject={handleNewProject}
           onOpenProject={handleOpenSavedDesign}
           userProfile={userProfile}
           setDesignData={setDesignData}
@@ -350,24 +374,24 @@ export default function AuraApp() {
       )}
 
       {currentRoute === 'my-designs' && (
-        <MyDesigns 
-          onNavigate={handleNavigate} 
-          activePage={activePage} 
+        <MyDesigns
+          onNavigate={handleNavigate}
+          activePage={activePage}
           onNewProject={handleNewProject}
           onOpenWorkspace={handleOpenSavedDesign}
         />
       )}
 
       {currentRoute === 'saved-products' && (
-        <SavedProducts 
-          onNavigate={handleNavigate} 
-          activePage={activePage} 
+        <SavedProducts
+          onNavigate={handleNavigate}
+          activePage={activePage}
         />
       )}
 
       {currentRoute === 'project-workspace' && (
-        <ProjectWorkspace 
-          onBack={() => setCurrentRoute('dashboard')} 
+        <ProjectWorkspace
+          onBack={() => setCurrentRoute('dashboard')}
           apiResult={apiResult}
           budget={designData.budget}
           geoCity={designData.location}
@@ -380,7 +404,7 @@ export default function AuraApp() {
       )}
 
       {currentRoute === 'settings' && (
-        <SettingsSection 
+        <SettingsSection
           onNavigate={handleNavigate}
           activePage={activePage}
           theme={theme}
@@ -394,7 +418,7 @@ export default function AuraApp() {
       )}
 
       {currentRoute === 'profile' && (
-        <ProfileSection 
+        <ProfileSection
           activePage="profile"
           onOpenSavedDesign={handleOpenSavedDesign}
           onNavigate={handleNavigate}
@@ -404,18 +428,18 @@ export default function AuraApp() {
         />
       )}
 
-      <CartSidebar 
-        isOpen={isCartOpen} 
-        onClose={() => setIsCartOpen(false)} 
+      <CartSidebar
+        isOpen={isCartOpen}
+        onClose={() => setIsCartOpen(false)}
         items={cartItems}
         onRemove={removeFromCart}
       />
 
       {toast && (
-        <Toast 
-          message={toast.message} 
-          type={toast.type} 
-          onClose={() => setToast(null)} 
+        <Toast
+          message={toast.message}
+          type={toast.type}
+          onClose={() => setToast(null)}
         />
       )}
 

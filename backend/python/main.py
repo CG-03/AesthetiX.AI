@@ -58,7 +58,7 @@ async def detect(req: DetectRequest):
 
         h, w = img.shape[:2]
 
-        results = model.predict(img, imgsz=640, conf=0.25)
+        results = model.predict(img, imgsz=1024, conf=0.15)
         result = results[0]
 
         best_detections = {}
@@ -90,7 +90,9 @@ async def detect(req: DetectRequest):
             if result.masks is not None and len(result.masks) > i:
                 coords = result.masks.xy[i]
                 if len(coords) > 0:
-                    segmentation_mask = [{"x": float(pt[0]), "y": float(pt[1])} for pt in coords]
+                    # Return normalized coordinates (0-100) instead of absolute pixels
+                    # to make SVG alignment easier across different viewport sizes
+                    segmentation_mask = [{"x": float(pt[0]) / w * 100, "y": float(pt[1]) / h * 100} for pt in coords]
 
             best_detections[label] = {
                 "id": i + 1,

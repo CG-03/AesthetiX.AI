@@ -2,13 +2,12 @@ import React, { useState, useEffect } from 'react';
 import {
   PenTool, LayoutTemplate, Tag, ArrowLeft, Download, Share2, X,
   Maximize2, ShoppingCart, Loader2, Sofa, Lamp, Layers,
-  Paintbrush, Wrench, MoreHorizontal, BarChart3, ChevronDown, ChevronUp, ChevronRight, KeyRound, HardHat, ExternalLink, Sparkles, Image as ImageIcon, Sun, Moon, Scan, Save
+  Paintbrush, Wrench, MoreHorizontal, BarChart3, ChevronDown, ChevronUp, ChevronRight, KeyRound, HardHat, ExternalLink, Sparkles, Image as ImageIcon, Sun, Moon, Scan
 } from 'lucide-react';
 
 import html2canvas from 'html2canvas';
 import ProductCard from '../components/ProductCard';
 import AnalysisCards from '../components/AnalysisCards';
-import Object3DViewer from '../components/Object3DViewer';
 
 interface ProjectWorkspaceProps {
   onBack: () => void;
@@ -41,7 +40,6 @@ export default function ProjectWorkspace({ onBack, apiResult, budget = 4500, car
   const [costMode, setCostMode] = useState<'retail' | 'custom'>('retail');
   const [selectedProduct, setSelectedProduct] = useState<any>(null);
   const [isCollageOpen, setIsCollageOpen] = useState(false);
-  const [isSaving, setIsSaving] = useState(false);
   const collageRef = React.useRef<HTMLDivElement>(null);
 
   const [remediatePrompt, setRemediatePrompt] = useState("");
@@ -51,8 +49,6 @@ export default function ProjectWorkspace({ onBack, apiResult, budget = 4500, car
   const [isBreakdownOpen, setIsBreakdownOpen] = useState(false);
 
   const [selectedObjectId, setSelectedObjectId] = useState<number | null>(null);
-  const [hoveredObjectId, setHoveredObjectId] = useState<number | null>(null);
-  const [showLabels, setShowLabels] = useState(true);
 
   // Product Search States
   const [isSearchingProduct, setIsSearchingProduct] = useState(false);
@@ -66,33 +62,6 @@ export default function ProjectWorkspace({ onBack, apiResult, budget = 4500, car
     }
   }, [apiResult]);
 
-  // Removed Canvas useEffect logic. Replaced with pure SVG rendering below.
-
-  // Adding Custom CSS for Pulse Animation in Component
-  React.useEffect(() => {
-    const style = document.createElement('style');
-    style.innerHTML = `
-      @keyframes dashPulse {
-        0% { stroke-dashoffset: 0; filter: drop-shadow(0 0 2px rgba(179,84,30,0.5)); }
-        50% { filter: drop-shadow(0 0 10px rgba(179,84,30,1)); }
-        100% { stroke-dashoffset: -24; filter: drop-shadow(0 0 2px rgba(179,84,30,0.5)); }
-      }
-      .animate-dash-pulse {
-        animation: dashPulse 1.5s linear infinite;
-        stroke-dasharray: 6 6;
-      }
-    `;
-    document.head.appendChild(style);
-    return () => { document.head.removeChild(style); }
-  }, []);
-
-  const getRenderSrc = () => {
-    if (renderMode === 'original') return formatImageSrc(apiResult?.image || activeImage);
-    if (renderMode === 'nighttime' && apiResult?.nighttimeImage) return formatImageSrc(apiResult.nighttimeImage);
-    // For daylight and labelled, show the redesigned image (Daylight render)
-    return formatImageSrc(apiResult?.redesignedImage || activeImage);
-  };
-
   const handleShare = () => {
     if (navigator.share) {
       navigator.share({
@@ -102,44 +71,6 @@ export default function ProjectWorkspace({ onBack, apiResult, budget = 4500, car
       }).catch(console.error);
     } else {
       alert("Sharing is not supported on this browser.");
-    }
-  };
-
-  const [expandedSections, setExpandedSections] = useState({
-    design: true, vastu: false, next: false
-  });
-
-  const handleSaveProject = async () => {
-    if (isSaving || !apiResult) return;
-    setIsSaving(true);
-    try {
-      const payload = {
-        projectName: `${budget ? `₹${budget} ` : ''}${geoCity || 'Design'}`, 
-        roomType: apiResult.text.includes('Living Room') ? 'Living Room' : 'Room', // Generic fallback
-        designStyle: 'AI Generated', 
-        textAnalysis: apiResult.text,
-        vastuDetails: null, // Depending on parser logic, we can populate if needed
-        detectedObjects,
-        originalImage: apiResult.image, 
-        daylightImage: apiResult.redesignedImage,
-        nightlightImage: apiResult.nighttimeImage,
-        labelledImage: '' // Placeholder, dynamically generated via UI so typically absent
-      };
-      
-      const res = await fetch('/api/projects/save', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(payload)
-      });
-      
-      if (!res.ok) throw new Error('Failed to save project');
-      // Toast notification might be handled in parent, or we can simply alert/log
-      alert('Project saved successfully to Firebase!');
-    } catch(err: any) {
-      console.error(err);
-      alert(`Error saving project: ${err.message}`);
-    } finally {
-      setIsSaving(false);
     }
   };
 
@@ -236,7 +167,11 @@ export default function ProjectWorkspace({ onBack, apiResult, budget = 4500, car
     return {};
   };
 
-
+  const getRenderSrc = () => {
+    if (renderMode === 'original') return formatImageSrc(apiResult?.image);
+    if (renderMode === 'nighttime' && apiResult?.nighttimeImage) return formatImageSrc(apiResult.nighttimeImage);
+    return formatImageSrc(activeImage);
+  };
 
   let displayProducts = apiResult?.products && apiResult.products.length > 0 ? apiResult.products : products;
 
@@ -292,10 +227,6 @@ export default function ProjectWorkspace({ onBack, apiResult, budget = 4500, car
               <span className="absolute -top-1 -right-1 bg-[#B3541E] text-white text-[10px] font-bold w-4 h-4 flex items-center justify-center rounded-full shadow-sm">{cartItems.length}</span>
             )}
           </div>
-          <button onClick={handleSaveProject} disabled={isSaving} className={`flex items-center gap-2 px-4 py-2 rounded-xl text-sm font-semibold transition-colors print:hidden ${isSaving ? 'bg-gray-100 text-gray-500 cursor-not-allowed' : 'border border-[#B3541E] text-[#B3541E] hover:bg-[#B3541E]/10'}`}>
-            {isSaving ? <Loader2 size={16} className="animate-spin" /> : <Save size={16} />} 
-            {isSaving ? 'Saving...' : 'Save Project'}
-          </button>
           <button onClick={handleShare} className="flex items-center gap-2 px-4 py-2 rounded-xl border border-gray-200 dark:border-[#3A3632] text-sm font-semibold text-gray-500 dark:text-[#A89F94] hover:bg-gray-50 dark:hover:bg-[#2E2B28] transition-colors print:hidden">
             <Share2 size={16} /> Share
           </button>
@@ -316,7 +247,7 @@ export default function ProjectWorkspace({ onBack, apiResult, budget = 4500, car
               <h2 className="font-bold text-lg flex items-center gap-2 text-gray-900 dark:text-[#F5F0E8]">
                 <LayoutTemplate size={18} className="text-[#B3541E]" /> AI Vision Render
               </h2>
-              <div className="flex bg-gray-100 dark:bg-[#0F0E0D] p-1 rounded-xl items-center gap-1">
+              <div className="flex bg-gray-100 dark:bg-[#0F0E0D] p-1 rounded-xl">
                 <button
                   onClick={() => setRenderMode('original')}
                   className={`p-2 rounded-lg text-sm transition-colors flex items-center justify-center gap-2 ${renderMode === 'original' ? 'bg-white dark:bg-[#1A1816] shadow-sm text-[#1F1F1F] dark:text-[#F5F0E8]' : 'text-gray-500 hover:text-gray-800 dark:text-[#6B6460] dark:hover:text-[#A89F94]'}`}
@@ -363,89 +294,35 @@ export default function ProjectWorkspace({ onBack, apiResult, budget = 4500, car
                 referrerPolicy="no-referrer"
               />
 
-              {/* SVG Overlays for Segmentation & Pointers */}
-              {renderMode === 'labelled' && detectedObjects && detectedObjects.length > 0 && (
-                <svg className="absolute inset-0 w-full h-full pointer-events-none z-10" viewBox={`0 0 ${detectedObjects[0]?.imageWidth || 100} ${detectedObjects[0]?.imageHeight || 100}`} preserveAspectRatio="none">
-                  {detectedObjects.map((obj: any, index: number) => {
-                     const isHovered = hoveredObjectId === obj.id;
-                     const isSelected = selectedObjectId === obj.id;
-                     const isDimmed = (hoveredObjectId !== null && !isHovered) && !isSelected;
-                     
-                     // Pointer logic
-                     const offsetX = 8 + (index % 2) * 5; 
-                     const offsetY = -8 - (index % 3) * 3;
-                     const chipX = obj.boundingBox.x + offsetX;
-                     const chipY = obj.boundingBox.y + offsetY;
-                     
-                     // Build SVG Polygon path from 0-100 percentages mapped to the viewBox dimension sizes if needed... wait, YOLO passed raw pixel coordinates in segmentationMask!
-                     // Actually, segmentationMask has X Y raw coordinates in image bounds!
-                     const pointsString = obj.segmentationMask.map((pt: any) => `${pt.x},${pt.y}`).join(" ");
-
-                     return (
-                        <g key={obj.id}>
-                          {/* Segmentation Polygon */}
-                          <polygon 
-                            points={pointsString}
-                            fill={isHovered || isSelected ? 'rgba(179, 84, 30, 0.5)' : (isDimmed ? 'rgba(255, 255, 255, 0.02)' : 'rgba(255, 255, 255, 0.1)')}
-                            stroke={isDimmed ? 'rgba(179, 84, 30, 0.1)' : '#B3541E'}
-                            strokeWidth={isHovered || isSelected ? '3' : '1.5'}
-                            className={`transition-all duration-300 pointer-events-auto cursor-pointer ${isHovered || isSelected ? 'animate-dash-pulse' : ''}`}
-                            onMouseEnter={() => setHoveredObjectId(obj.id)}
-                            onMouseLeave={() => setHoveredObjectId(null)}
-                            onClick={(e) => handleLabelClick(e as any, obj)}
-                          />
-
-                          {/* Pointer Line */}
-                          <line 
-                            x1={`${obj.boundingBox.x}%`} 
-                            y1={`${obj.boundingBox.y}%`} 
-                            x2={`${chipX}%`} 
-                            y2={`${chipY}%`} 
-                            stroke={isHovered || isSelected ? '#B3541E' : 'rgba(255, 255, 255, 0.6)'} 
-                            strokeWidth={isHovered || isSelected ? '1.5' : '1'} 
-                            strokeDasharray={isSelected ? '0' : '4'}
-                          />
-                        </g>
-                     )
-                  })}
-                </svg>
-              )}
-
-              {/* Floating Chip Labels */}
-              {renderMode === 'labelled' && detectedObjects && detectedObjects.length > 0 && (
-                <div className="absolute inset-0 z-20 pointer-events-none">
+              {/* Floating Labels (Replacing SAM Hotspots) */}
+              {renderMode !== 'original' && detectedObjects && detectedObjects.length > 0 && (
+                <div className="absolute inset-0 z-10 pointer-events-none">
                   {detectedObjects.map((obj: any, index: number) => {
                     const isSelected = selectedObjectId === obj.id;
-                    const isHovered = hoveredObjectId === obj.id;
-                    const isDimmed = (hoveredObjectId !== null && !isHovered) && !isSelected;
-                    
-                    const offsetX = 8 + (index % 2) * 5; 
-                    const offsetY = -8 - (index % 3) * 3;
+                    // Simple offset logic for overlapping labels
+                    const offset = (index % 3) * 5;
 
                     return (
                       <div
                         key={obj.id}
                         className="absolute pointer-events-auto transition-all duration-300 transform -translate-x-1/2 -translate-y-1/2"
                         style={{
-                          left: `${obj.boundingBox.x + offsetX}%`,
-                          top: `${obj.boundingBox.y + offsetY}%`,
-                          zIndex: isSelected ? 50 : (isHovered ? 40 : 30),
-                          opacity: isDimmed ? 0.4 : 1
+                          left: `${obj.boundingBox.x}%`,
+                          top: `${obj.boundingBox.y + (isSelected ? 0 : offset)}%`,
+                          zIndex: isSelected ? 50 : 30
                         }}
                       >
                         <button
                           type="button"
-                          onMouseEnter={() => setHoveredObjectId(obj.id)}
-                          onMouseLeave={() => setHoveredObjectId(null)}
                           onClick={(e) => handleLabelClick(e, obj)}
-                          className={`group flex items-center gap-2 px-3 py-1.5 rounded-full border border-white/20 transition-all duration-300 shadow-lg whitespace-nowrap backdrop-blur-md
-                            ${isSelected || isHovered
-                              ? 'bg-[#B3541E] text-white scale-105 shadow-[0_0_15px_rgba(179,84,30,0.6)]'
-                              : 'bg-black/40 text-white hover:bg-black/60'}`}
+                          className={`group flex items-center gap-2 px-4 py-2 rounded-full border-2 transition-all duration-300 shadow-lg whitespace-nowrap
+                            ${isSelected
+                              ? 'bg-[#B3541E] border-[#B3541E] text-white scale-110 shadow-[0_0_20px_rgba(179,84,30,0.6)]'
+                              : 'bg-white dark:bg-[#242220] border-[#B3541E] text-[#1F1F1F] dark:text-[#F5F0E8] hover:scale-105 hover:shadow-[0_0_15px_rgba(179,84,30,0.4)]'}`}
                         >
-                          <span className="text-[10px] font-bold uppercase tracking-wider">
-                            {obj.label} {obj.confidence && `(${(obj.confidence * 100).toFixed(0)}%)`}
-                          </span>
+                          <div className={`w-2 h-2 rounded-full animate-pulse ${isSelected ? 'bg-white' : 'bg-[#B3541E]'}`} />
+                          <span className="text-[11px] font-bold uppercase tracking-wider">{obj.label}</span>
+                          <ChevronRight size={14} className={`transition-transform ${isSelected ? 'rotate-90' : 'group-hover:translate-x-0.5'}`} />
                         </button>
                       </div>
                     );
@@ -664,7 +541,7 @@ export default function ProjectWorkspace({ onBack, apiResult, budget = 4500, car
       {/* Product Discovery Popup */}
       {showProductPopup && activeLabel && activeLabel.id && (
         <div className="fixed inset-0 z-[110] flex items-center justify-center p-4 bg-black/60 backdrop-blur-md transition-all animate-in fade-in duration-300" onClick={() => setShowProductPopup(false)}>
-          <div className="bg-white dark:bg-[#1A1816] rounded-[2.5rem] w-full max-w-2xl overflow-hidden shadow-2xl relative border border-gray-100 dark:border-[#3A3632] animate-in zoom-in-95 duration-300 flex flex-col max-h-[90vh]" onClick={e => e.stopPropagation()}>
+          <div className="bg-white dark:bg-[#1A1816] rounded-[2.5rem] w-full max-w-2xl overflow-hidden shadow-2xl relative border border-gray-100 dark:border-[#3A3632] animate-in zoom-in-95 duration-300" onClick={e => e.stopPropagation()}>
             <button
               onClick={() => setShowProductPopup(false)}
               className="absolute top-6 right-6 z-20 w-10 h-10 flex items-center justify-center bg-white/90 dark:bg-[#2E2B28]/90 backdrop-blur-sm rounded-full text-gray-500 dark:text-[#A89F94] hover:text-black dark:hover:text-[#F5F0E8] hover:scale-110 transition-all shadow-md"
@@ -672,30 +549,18 @@ export default function ProjectWorkspace({ onBack, apiResult, budget = 4500, car
               <X size={20} />
             </button>
 
-            {/* 3D Viewer Integration */}
-            <Object3DViewer 
-              segmentationMask={activeLabel.segmentationMask} 
-              imageWidth={activeLabel.imageWidth} 
-              imageHeight={activeLabel.imageHeight} 
-              imageUrl={getRenderSrc()} 
-            />
-
             {/* Header Content */}
-            <div className="p-8 pb-4 shrink-0">
+            <div className="p-8 pb-4">
               <div className="flex items-center gap-2 mb-2">
                 <span className="px-3 py-1 bg-[#B3541E]/10 text-[#B3541E] text-[10px] font-bold uppercase tracking-widest rounded-full">Detected Item</span>
-                <span className="text-gray-300 dark:text-[#3A3632]">•</span>
-                <span className="text-gray-400 dark:text-[#6B6460] text-[10px] font-bold uppercase tracking-widest hover:text-black">
-                  {activeLabel.confidence ? `YOLO Conf: ${(activeLabel.confidence * 100).toFixed(0)}%` : 'AI Match'}
-                </span>
                 <span className="text-gray-300 dark:text-[#3A3632]">•</span>
                 <span className="text-gray-400 dark:text-[#6B6460] text-[10px] font-bold uppercase tracking-widest">{activeLabel.style} • {activeLabel.color}</span>
               </div>
               <h2 className="text-3xl font-bold tracking-tight text-[#1F1F1F] dark:text-[#F5F0E8] capitalize">{activeLabel.label}</h2>
             </div>
-            
+
             {/* Main Content Area */}
-            <div className="px-8 pb-8 overflow-y-auto custom-scrollbar flex-1 relative">
+            <div className="px-8 pb-8 overflow-y-auto max-h-[70vh] custom-scrollbar">
 
               {/* Product Visuals (Serper Images) */}
               <div className="mb-8">

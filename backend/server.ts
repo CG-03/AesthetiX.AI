@@ -3,9 +3,6 @@ dotenv.config();
 
 import express from "express";
 import cors from "cors";
-import { initializeApp, cert } from "firebase-admin/app";
-import { getFirestore } from "firebase-admin/firestore";
-import { getStorage } from "firebase-admin/storage";
 
 const OPENROUTER_API_KEY = process.env.OPENROUTER_API_KEY as string;
 const SERPER_API_KEY = process.env.SERPER_API_KEY as string;
@@ -15,38 +12,7 @@ const app = express();
 const port = process.env.PORT || 5000;
 
 app.use(cors());
-app.use(express.json({ limit: "50mb" })); // Increased limit for 4 base64 images
-
-// ── Firebase Initialization ───────────────────────────────────────────────
-const FIREBASE_PROJECT_ID = process.env.FIREBASE_PROJECT_ID as string;
-const FIREBASE_CLIENT_EMAIL = process.env.FIREBASE_CLIENT_EMAIL as string;
-const FIREBASE_PRIVATE_KEY = process.env.FIREBASE_PRIVATE_KEY 
-  ? process.env.FIREBASE_PRIVATE_KEY.replace(/\\n/g, '\n') // Fix literal newlines from .env 
-  : "";
-const FIREBASE_STORAGE_BUCKET = process.env.FIREBASE_STORAGE_BUCKET as string;
-
-let db: any = null;
-let bucket: any = null;
-
-if (!FIREBASE_PROJECT_ID || !FIREBASE_PRIVATE_KEY || !FIREBASE_STORAGE_BUCKET) {
-  console.error("[STARTUP] ERROR: Firebase credentials missing in backend/.env!");
-} else {
-  try {
-    initializeApp({
-      credential: cert({
-        projectId: FIREBASE_PROJECT_ID,
-        clientEmail: FIREBASE_CLIENT_EMAIL,
-        privateKey: FIREBASE_PRIVATE_KEY,
-      }),
-      storageBucket: FIREBASE_STORAGE_BUCKET
-    });
-    db = getFirestore();
-    bucket = getStorage().bucket();
-    console.log("[STARTUP] Firebase Admin initialized successfully.");
-  } catch (err: any) {
-    console.error("[STARTUP] Firebase init failed:", err.message);
-  }
-}
+app.use(express.json({ limit: "20mb" }));
 
 // ── Startup checks ────────────────────────────────────────────────────────
 if (!OPENROUTER_API_KEY || OPENROUTER_API_KEY.length < 20) {
@@ -130,11 +96,11 @@ async function openrouterChat(
     const status = response.status;
     const errText = await response.text();
     console.error(`[OpenRouter] Error ${status}: ${errText}`);
-    
+
     // Check if it's a known error type
     let parsedErr;
     try { parsedErr = JSON.parse(errText); } catch { /* ignore */ }
-    
+
     const message = parsedErr?.error?.message || errText || "Unknown OpenRouter Error";
     throw new Error(`OpenRouter ${status}: ${message}`);
   }
@@ -212,15 +178,8 @@ CRITICAL: At the very end of your response, output a strict JSON array of 4 dist
 
     const designPrompt = `CRITICAL ARCHITECTURAL LOCK: Use the provided uploaded image as the ONLY structural template. PRESERVE EXACTLY all walls, windows, doors, pillars, ceiling height, and floor boundaries. Do NOT add new windows, shift walls, or change room dimensions. This is an interior decor replacement ONLY. Structural accuracy is the highest priority.
 REDESIGN RENDER: ${roomType || "room"}, ${style || "modern"} style interior design, tailored for a ${ownership || "homeowner"} in ${location || "the city"}. High quality, realistic, professional architecture visualization, 8k resolution.`;
-    
-    const nightPrompt = `ULTRA-REALISTIC NIGHTTIME TRANSFORMATION: 
-    1. Maintain the EXACT interior architecture, furniture layout, and materials from the daylight image. 
-    2. TOTAL DARKNESS OUTSIDE: Remove all natural daylight. Windows must NOT cast any blue or white daylight into the room. 
-    3. ARTIFICIAL LIGHTING: Activate all interior artificial light sources including lamps, ceiling lights, and wall sconces. 
-    4. LIGHT & SHADOW: Create warm, golden/amber interior light pools with soft realistic falloff. Ensure high-contrast lighting with deep, rich shadows in unlit corners and under furniture.
-    5. EXTERIOR VIEW: Windows should show a deep, cool navy blue night sky with realistic city lights or distant stars. 
-    6. AMBIANCE: Create a cozy, cinematic, and immersive nighttime atmosphere. Professional architectural night photography style. 
-    7. NO structural changes.`;
+
+    const nightPrompt = `TRANSFORM TO NIGHTTIME: Maintain the EXACT interior design, layout, and furniture from the daylight image. Modify ONLY the lighting. Create a warm, dramatic nighttime ambient scene. Turn on all interior lamps, accent lights, and LEDs. Windows should show a dark night exterior. No structural changes.`;
 
     console.log("\nStarting AI tasks...");
 
@@ -273,12 +232,12 @@ REDESIGN RENDER: ${roomType || "room"}, ${style || "modern"} style interior desi
               ],
             },
           ],
-          { 
+          {
             // Some newer multimodal models work better with explicit response_modalities 
             // for image generation. However,Nano Banana (2.5 flash image) uses 
             // standard chat completions but might require this for certain features.
             // Keeping it flexible but safer.
-            response_modalities: ["text", "image"] 
+            response_modalities: ["text", "image"]
           }
         );
 
@@ -335,36 +294,20 @@ REDESIGN RENDER: ${roomType || "room"}, ${style || "modern"} style interior desi
 
     console.log("[OpenRouter] Daylight stable. Generating matching nighttime variant...");
 
-    const nighttimeImage = await generateImage(nightPrompt, daylightImage).catch(e => { 
-      console.error("Night render sequential fallback failed", e); 
-      return daylightImage; 
+    const nighttimeImage = await generateImage(nightPrompt, daylightImage).catch(e => {
+      console.error("Night render sequential fallback failed", e);
+      return daylightImage;
     });
 
-    // Extract products (Robust Regex Parser)
+    // Extract products
     let parsedProducts = [];
     try {
-      // Find content between markers [PRODUCTS_JSON_START] and [PRODUCTS_JSON_END]
-      const productMatch = analysisResultText.match(/\[PRODUCTS_JSON_START\]([\s\S]*?)\[PRODUCTS_JSON_END\]/);
-      
-      if (productMatch && productMatch[1]) {
-        let jsonStr = productMatch[1].trim();
-        
-        // Remove markdown backticks if present
-        jsonStr = jsonStr.replace(/^```(?:json)?\s*|\s*```$/g, "").trim();
-        
-        parsedProducts = JSON.parse(jsonStr);
-        console.log(`[Parser] Successfully extracted ${parsedProducts.length} products.`);
-      } else {
-        console.log("[Parser] No product markers found in analysis text.");
+      if (analysisResultText.includes("[PRODUCTS_JSON_START]") && analysisResultText.includes("[PRODUCTS_JSON_END]")) {
+        const jsonStr = analysisResultText.split("[PRODUCTS_JSON_START]")[1].split("[PRODUCTS_JSON_END]")[0];
+        parsedProducts = JSON.parse(jsonStr.trim());
       }
-    } catch (parseErr: any) {
-       console.warn(`[Parser] Failed to parse products cleanly: ${parseErr.message}`);
-       // Log the actual string that failed for debugging
-       const startIdx = analysisResultText.indexOf("[PRODUCTS_JSON_START]");
-       if (startIdx !== -1) {
-         const preview = analysisResultText.substring(startIdx, startIdx + 100);
-         console.warn(`[Parser] Context near start: ${preview}...`);
-       }
+    } catch {
+      console.warn("Failed to parse products cleanly.");
     }
 
     // ── Response ──────────────────────────────────────────────────────────
@@ -381,9 +324,9 @@ REDESIGN RENDER: ${roomType || "room"}, ${style || "modern"} style interior desi
   } catch (error: any) {
     console.error("\n--- CRITICAL BACKEND ENDPOINT ERROR ---");
     console.error(error);
-    
+
     const msg = error?.message || String(error);
-    
+
     // Explicitly handle OpenRouter billing/quota errors
     if (msg.includes("API_QUOTA_EXCEEDED") || msg.includes("403") || msg.includes("402") || msg.includes("limit exceeded")) {
       return res.status(429).json({
@@ -417,28 +360,29 @@ app.post("/api/remediate", async (req, res) => {
     try {
       console.log(`[OpenRouter] Remediation attempt via ${IMAGE_MODEL}...`);
       const imageData = await openrouterChat(
-        IMAGE_MODEL, 
+        IMAGE_MODEL,
         [
           {
             role: "system",
             content: "You are a professional interior design image generation engine. Generate the redesign image based on the provided photo and modification description. Output ONLY the generated image. Do NOT provide text reasoning, JSON, or parameters."
           },
-          { 
-            role: "user", 
+          {
+            role: "user",
             content: [
-              { type: "text", text: `REMEDIATE RENDER: Modify the provided interior design by applying these requested changes: "${promptOverrides}". 
+              {
+                type: "text", text: `REMEDIATE RENDER: Modify the provided interior design by applying these requested changes: "${promptOverrides}". 
               CRITICAL: 
               1. Use the provided image as the EXACT structural template. 
               2. High-Fidelity Preservation: Maintain the current furniture layout, flooring, and architecture unless explicitly asked to change them.
               3. Incremental Edit: Apply ONLY the requested changes (e.g., if asked for wall color, only change the walls). 
-              4. Realistic Output: Professional 8k interior visualization.` }, 
+              4. Realistic Output: Professional 8k interior visualization.` },
               { type: "image_url", image_url: { url: imageUrl } }
             ]
           }
         ],
         { modalities: ["image", "text"] }
       );
-      
+
       const message = imageData?.choices?.[0]?.message;
       const content = message?.content;
       const images = message?.images;
@@ -463,7 +407,7 @@ app.post("/api/remediate", async (req, res) => {
         }
       } else if (!imageBase64 && typeof content === "string" && content.trim()) {
         const trimmed = content.trim();
-        const dataUrlMatch = trimmed.match(/data:image\/[a-zA-Z]*;base64,[^\s"']*/); 
+        const dataUrlMatch = trimmed.match(/data:image\/[a-zA-Z]*;base64,[^\s"']*/);
         if (dataUrlMatch) {
           imageBase64 = dataUrlMatch[0];
         } else if (!trimmed.includes(" ") && trimmed.length > 1000) {
@@ -490,43 +434,101 @@ app.post("/api/remediate", async (req, res) => {
 // ── POST /api/detect-objects ──────────────────────────────────────────────
 
 app.post("/api/detect-objects", async (req, res) => {
-  console.log("\n--- New Object Detection Request Received (YOLO11-seg) ---");
+  console.log("\n--- New Object Detection Request Received (Nemotron Precision) ---");
   try {
     const { redesignedImage } = req.body;
     if (!redesignedImage) return res.status(200).json([]); // Never break frontend
 
     const imageUrl = redesignedImage.startsWith("data:") ? redesignedImage : `data:image/jpeg;base64,${redesignedImage}`;
 
-    console.log(`[YOLO] Sending request to Python microservice at localhost:8000...`);
+    const visionPrompt = `Look at this interior design image. Provide a JSON array of visible furniture and decor items. 
+    Return a maximum of 6 most prominent furniture items only. Do not list small accessories or decorative items.
     
-    // Call Python microservice
-    const controller = new AbortController();
-    const timeoutId = setTimeout(() => controller.abort(), 15000); // 15 seconds timeout
+    For each item include: 
+    - "name": (e.g., "Velvet Sofa")
+    - "color": (e.g., "Deep Emerald")
+    - "style": (e.g., "Mid-Century Modern")
+    - "material": (e.g., "Velvet")
+    - "boundingBox": { "x": percentage, "y": percentage, "width": percentage, "height": percentage }
     
-    try {
-      const response = await fetch("http://localhost:8000/detect", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ image: imageUrl }),
-        signal: controller.signal
-      });
-      
-      clearTimeout(timeoutId);
-      
-      if (!response.ok) {
-        throw new Error(`Python microservice returned status: ${response.status}`);
-      }
-      
-      const detections = await response.json();
-      console.log(`[YOLO] Detection complete. Found ${detections.length} items.`);
-      res.status(200).json(detections);
-      
-    } catch (fetchErr: any) {
-      clearTimeout(timeoutId);
-      console.error(`[YOLO] Microservice unavailable or failed: ${fetchErr.message}`);
-      console.log("[YOLO] Falling back to graceful empty response (project continues working)");
-      res.status(200).json([]);
+    CRITICAL: 
+    1. "x" and "y" MUST represent the EXACT CENTER point of the object in the image (0-100).
+    2. "width" and "height" are the object's relative size (0-100).
+    3. Return ONLY the raw JSON array. No markdown code blocks, no preamble.`;
+
+    console.log(`[SAM] Starting Precision Vision Detection via ${TEXT_MODEL}...`);
+    const visionResult = await openrouterChat(
+      TEXT_MODEL,
+      [
+        {
+          role: "user",
+          content: [
+            { type: "text", text: visionPrompt },
+            { type: "image_url", image_url: { url: imageUrl } },
+          ],
+        },
+      ],
+      { max_tokens: 2000 } // Increase limit to prevent truncation
+    );
+
+    let content = visionResult?.choices?.[0]?.message?.content || "[]";
+    
+    // Robust extraction: find anything between the first [ and the last ]
+    const arrayMatch = content.match(/\[[\s\S]*\]/);
+    if (arrayMatch) {
+      content = arrayMatch[0];
+    } else {
+      console.warn("[SAM] No JSON array markers [ ] found in response.");
     }
+
+    let visionDetected = [];
+
+    // Recovery-First JSON Parser
+    try {
+      visionDetected = JSON.parse(content);
+    } catch (parseErr) {
+      console.warn("[SAM] Initial parse failed. Attempting structural recovery...");
+      try {
+        // Find last complete object closing brace
+        const lastBrace = content.lastIndexOf("}");
+        if (lastBrace !== -1) {
+          const repaired = content.substring(0, lastBrace + 1) + "]";
+          visionDetected = JSON.parse(repaired);
+          console.log("[SAM] Structural recovery successful.");
+        } else {
+          throw new Error("No object braces found");
+        }
+      } catch (recoveryErr) {
+        console.error("[SAM] Recovery failed. Falling back to keyword extraction.");
+        // Use HEURISTIC_BOUNDING_BOXES for keyword extraction from broken text
+        const keywords = Object.keys(HEURISTIC_BOUNDING_BOXES);
+        const uniqueFound = new Set<string>();
+
+        keywords.forEach(kw => {
+          if (content.toLowerCase().includes(kw)) {
+            uniqueFound.add(kw);
+          }
+        });
+
+        visionDetected = Array.from(uniqueFound).slice(0, 6).map(kw => ({
+          name: kw.charAt(0).toUpperCase() + kw.slice(1),
+          boundingBox: HEURISTIC_BOUNDING_BOXES[kw]
+        }));
+      }
+    }
+
+    const items = Array.isArray(visionDetected) ? visionDetected : (visionDetected.items || []);
+    const finalObjects = items.map((item: any, idx: number) => ({
+      id: idx + 1,
+      label: item.name || "Object",
+      color: item.color || "matching",
+      style: item.style || "modern",
+      material: item.material || "standard",
+      boundingBox: item.boundingBox || { x: 50, y: 50, width: 20, height: 20 }
+    }));
+
+    console.log(`[SAM] Detection complete. Found ${finalObjects.length} items.`);
+    res.status(200).json(finalObjects);
 
   } catch (error: any) {
     console.error("\n--- OBJECT DETECTION ERROR (FORCED SUCCESS) ---");
@@ -547,7 +549,7 @@ app.post("/api/search-products", async (req, res) => {
 
   try {
     const query = `${color} ${style} ${productName} ${material} furniture India`.trim();
-    
+
     const serperResponse = await fetch("https://google.serper.dev/shopping", {
       method: "POST",
       headers: {
@@ -590,145 +592,6 @@ app.post("/api/search-products", async (req, res) => {
   } catch (error: any) {
     console.error("Serper Search Error:", error);
     res.status(500).json({ error: "Search failed" });
-  }
-});
-
-// ── FIREBASE ROUTES: Projects ──────────────────────────────────────────────────
-
-// Helper function to upload base64 image to Firebase Storage
-async function uploadBase64Image(base64Str: string, destinationPath: string): Promise<string> {
-  if (!base64Str) return "";
-  if (!bucket) throw new Error("Firebase Storage bucket is not initialized");
-
-  const matches = base64Str.match(/^data:([A-Za-z-+\/]+);base64,(.+)$/);
-  if (!matches || matches.length !== 3) {
-    throw new Error("Invalid base64 string");
-  }
-
-  const mimeType = matches[1];
-  const buffer = Buffer.from(matches[2], "base64");
-  const file = bucket.file(destinationPath);
-
-  await file.save(buffer, {
-    metadata: { contentType: mimeType },
-    public: true, // Requires correct IAM permissions on the bucket or using token-based URLs depending on Firebase rules
-  });
-
-  // Make the file publicly accessible permanently (simplified token approach)
-  await file.makePublic();
-  
-  return `https://storage.googleapis.com/${FIREBASE_STORAGE_BUCKET}/${destinationPath}`;
-}
-
-// POST /api/projects/save
-app.post("/api/projects/save", async (req, res) => {
-  console.log("\n--- Saving Project to Firebase ---");
-  if (!db) return res.status(500).json({ error: "Firebase not initialized" });
-
-  try {
-    const {
-      projectName, roomType, designStyle, textAnalysis, vastuDetails,
-      detectedObjects, daylightImage, nightlightImage, originalImage, labelledImage
-    } = req.body;
-
-    const projectId = `proj_${Date.now()}_${Math.random().toString(36).substring(2, 9)}`;
-
-    console.log(`[Firebase] Uploading images for project ${projectId}...`);
-    
-    // Concurrently upload all 4 images
-    const [daylightUrl, nightlightUrl, originalUrl, labelledUrl] = await Promise.all([
-      uploadBase64Image(daylightImage, `projects/${projectId}/daylight.png`),
-      nightlightImage ? uploadBase64Image(nightlightImage, `projects/${projectId}/nightlight.png`) : Promise.resolve(null),
-      originalImage ? uploadBase64Image(originalImage, `projects/${projectId}/original.png`) : Promise.resolve(null),
-      labelledImage ? uploadBase64Image(labelledImage, `projects/${projectId}/labelled.png`) : Promise.resolve(null)
-    ]);
-
-    const projectData = {
-      id: projectId,
-      projectName: projectName || "My Vastu Design",
-      roomType: roomType || "Room",
-      designStyle: designStyle || "Custom",
-      createdAt: new Date().toISOString(),
-      daylightImageUrl: daylightUrl,
-      nightlightImageUrl: nightlightUrl,
-      originalImageUrl: originalUrl,
-      labelledImageUrl: labelledUrl,
-      textAnalysis: textAnalysis || "",
-      vastuDetails: vastuDetails || null,
-      detectedObjects: detectedObjects || []
-    };
-
-    console.log(`[Firebase] Saving metadata to Firestore...`);
-    await db.collection("projects").doc(projectId).set(projectData);
-
-    console.log(`[Firebase] Project ${projectId} saved successfully.`);
-    return res.status(200).json(projectData);
-  } catch (error: any) {
-    console.error("[Firebase] Error saving project:", error);
-    return res.status(500).json({ error: "Failed to save project", details: error.message });
-  }
-});
-
-// GET /api/projects
-app.get("/api/projects", async (req, res) => {
-  if (!db) return res.status(500).json({ error: "Firebase not initialized" });
-  try {
-    const snapshot = await db.collection("projects").orderBy("createdAt", "desc").get();
-    const projects: any[] = [];
-    snapshot.forEach((doc: any) => {
-      projects.push(doc.data());
-    });
-    return res.status(200).json(projects);
-  } catch (error: any) {
-    console.error("[Firebase] Error fetching projects:", error);
-    return res.status(500).json({ error: "Failed to fetch projects" });
-  }
-});
-
-// GET /api/projects/:id
-app.get("/api/projects/:id", async (req, res) => {
-  if (!db) return res.status(500).json({ error: "Firebase not initialized" });
-  try {
-    const doc = await db.collection("projects").doc(req.params.id).get();
-    if (!doc.exists) return res.status(404).json({ error: "Project not found" });
-    return res.status(200).json(doc.data());
-  } catch (error: any) {
-    console.error("[Firebase] Error fetching project:", error);
-    return res.status(500).json({ error: "Failed to fetch project" });
-  }
-});
-
-// DELETE /api/projects/:id
-app.delete("/api/projects/:id", async (req, res) => {
-  if (!db || !bucket) return res.status(500).json({ error: "Firebase not initialized" });
-  try {
-    const projectId = req.params.id;
-    console.log(`[Firebase] Deleting project ${projectId}...`);
-
-    // Clean up images from Storage
-    const deleteFiles = [
-      `projects/${projectId}/daylight.png`,
-      `projects/${projectId}/nightlight.png`,
-      `projects/${projectId}/original.png`,
-      `projects/${projectId}/labelled.png`
-    ];
-
-    for (const filePath of deleteFiles) {
-      const file = bucket.file(filePath);
-      try {
-        const [exists] = await file.exists();
-        if (exists) await file.delete();
-      } catch (err) {
-        console.warn(`[Firebase] Could not delete ${filePath}:`, err);
-      }
-    }
-
-    await db.collection("projects").doc(projectId).delete();
-    console.log(`[Firebase] Project ${projectId} deleted.`);
-    return res.status(200).json({ success: true });
-  } catch (error: any) {
-    console.error("[Firebase] Error deleting project:", error);
-    return res.status(500).json({ error: "Failed to delete project" });
   }
 });
 
