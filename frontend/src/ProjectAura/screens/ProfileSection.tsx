@@ -43,28 +43,36 @@ export default function ProfileSection({
   const [editName, setEditName] = useState('');
 
   useEffect(() => {
-    const history = localStorage.getItem('vastu_saved_designs');
-    if (history) {
-      const parsed = JSON.parse(history);
-      setSavedDesigns(parsed);
-      
-      const counts: Record<string, number> = {};
-      const styles: Record<string, number> = {};
-      parsed.forEach((d: any) => {
-        counts[d.roomType] = (counts[d.roomType] || 0) + 1;
-        styles[d.style] = (styles[d.style] || 0) + 1;
-      });
-
-      const topStyle = Object.entries(styles).sort((a, b) => b[1] - a[1])[0]?.[0] || 'Modern Minimalist';
-
-      setStats({
-        total: parsed.length,
-        topStyle,
-        roomCounts: counts
-      });
-    }
+    fetchProjects();
     if (userProfile) setEditName(userProfile.name);
   }, [userProfile]);
+
+  const fetchProjects = async () => {
+    try {
+      const res = await fetch('/api/projects');
+      if (res.ok) {
+        const parsed = await res.json();
+        setSavedDesigns(parsed);
+        
+        const counts: Record<string, number> = {};
+        const styles: Record<string, number> = {};
+        parsed.forEach((d: any) => {
+          counts[d.roomType] = (counts[d.roomType] || 0) + 1;
+          styles[d.designStyle || d.style] = (styles[d.designStyle || d.style] || 0) + 1;
+        });
+
+        const topStyle = Object.entries(styles).sort((a, b) => b[1] - a[1])[0]?.[0] || 'Modern Minimalist';
+
+        setStats({
+          total: parsed.length,
+          topStyle,
+          roomCounts: counts
+        });
+      }
+    } catch (err) {
+      console.error("Failed to fetch projects for profile", err);
+    }
+  };
 
   const handleAuth = (e: React.FormEvent) => {
     e.preventDefault();
@@ -99,12 +107,40 @@ export default function ProfileSection({
     showToast('Profile updated', 'success');
   };
 
-  const handleDelete = (id: string, e: React.MouseEvent) => {
+  const handleDelete = async (id: string, e: React.MouseEvent) => {
     e.stopPropagation();
-    const updated = savedDesigns.filter(d => d.id !== id);
-    setSavedDesigns(updated);
-    localStorage.setItem('vastu_saved_designs', JSON.stringify(updated));
-    showToast('Design removed from history', 'info');
+    try {
+      const res = await fetch(`/api/projects/${id}`, { method: 'DELETE' });
+      if (res.ok) {
+        const updated = savedDesigns.filter(d => d.id !== id);
+        setSavedDesigns(updated);
+        showToast('Design removed from history', 'info');
+      }
+    } catch (err) {
+      console.error("Failed to delete project", err);
+    }
+  };
+
+  const handleOpenProjectClick = async (id: string, e: React.MouseEvent) => {
+    e.stopPropagation();
+    try {
+      const res = await fetch(`/api/projects/${id}`);
+      if (res.ok) {
+        const fullProject = await res.json();
+        const mappedData = {
+          ...fullProject,
+          image: fullProject.originalImageUrl,
+          redesignedImage: fullProject.daylightImageUrl,
+          nighttimeImage: fullProject.nightlightImageUrl,
+          text: fullProject.textAnalysis,
+          products: [],
+          depthMapImage: null
+        };
+        onOpenSavedDesign(mappedData);
+      }
+    } catch (err) {
+      console.error("Failed to fetch full project details", err);
+    }
   };
 
   if (!userProfile) {
@@ -283,12 +319,12 @@ export default function ProfileSection({
               {savedDesigns.map((design) => (
                 <div 
                   key={design.id} 
-                  onClick={() => onOpenSavedDesign(design)}
+                  onClick={(e) => handleOpenProjectClick(design.id, e)}
                   className="group bg-white dark:bg-[#1A1816] rounded-3xl overflow-hidden border border-gray-100 dark:border-[#3A3632] shadow-sm hover:shadow-xl transition-all cursor-pointer relative"
                 >
                   <div className="aspect-[4/3] relative overflow-hidden bg-gray-50 dark:bg-gray-800 flex items-center justify-center border-b border-gray-100 dark:border-gray-800">
-                    {(design.redesignedImage || design.image) ? (
-                      <img src={design.redesignedImage || design.image} alt={design.roomType} className="w-full h-full object-cover" />
+                    {(design.daylightImageUrl) ? (
+                      <img src={design.daylightImageUrl} alt={design.roomType} className="w-full h-full object-cover" />
                     ) : (
                       <div className="flex flex-col items-center justify-center text-gray-200 dark:text-gray-700">
                         <Box size={48} className="mb-2" />
@@ -304,14 +340,14 @@ export default function ProfileSection({
                        </button>
                     </div>
                     <div className="absolute bottom-4 left-4">
-                      <span className="bg-[#B3541E] text-white text-[9px] font-bold px-2 py-1 rounded uppercase tracking-widest">{design.date}</span>
+                      <span className="bg-[#B3541E] text-white text-[9px] font-bold px-2 py-1 rounded uppercase tracking-widest">{design.createdAt ? new Date(design.createdAt).toLocaleDateString() : 'Recent'}</span>
                     </div>
                   </div>
                   <div className="p-6">
                     <div className="flex items-center justify-between mb-2">
                       <span className="text-[10px] font-bold uppercase tracking-[0.2em] text-[#B3541E]">{design.roomType}</span>
                     </div>
-                    <h3 className="font-bold text-lg mb-1 group-hover:text-[#B3541E] transition-colors">{design.style}</h3>
+                    <h3 className="font-bold text-lg mb-1 group-hover:text-[#B3541E] transition-colors">{design.designStyle || design.style}</h3>
                     <div className="flex items-center gap-2 mt-4 text-[11px] font-semibold text-gray-400">
                        <ExternalLink size={12} /> Open in Workspace
                     </div>

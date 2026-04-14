@@ -2,7 +2,7 @@ import React, { useState, useEffect } from 'react';
 import {
   PenTool, LayoutTemplate, Tag, ArrowLeft, Download, Share2, X,
   Maximize2, ShoppingCart, Loader2, Sofa, Lamp, Layers,
-  Paintbrush, Wrench, MoreHorizontal, BarChart3, ChevronDown, ChevronUp, ChevronRight, KeyRound, HardHat, ExternalLink, Sparkles, Image as ImageIcon, Sun, Moon, Scan
+  Paintbrush, Wrench, MoreHorizontal, BarChart3, ChevronDown, ChevronUp, ChevronRight, KeyRound, HardHat, ExternalLink, Sparkles, Image as ImageIcon, Sun, Moon, Scan, Save
 } from 'lucide-react';
 
 import html2canvas from 'html2canvas';
@@ -41,6 +41,7 @@ export default function ProjectWorkspace({ onBack, apiResult, budget = 4500, car
   const [costMode, setCostMode] = useState<'retail' | 'custom'>('retail');
   const [selectedProduct, setSelectedProduct] = useState<any>(null);
   const [isCollageOpen, setIsCollageOpen] = useState(false);
+  const [isSaving, setIsSaving] = useState(false);
   const collageRef = React.useRef<HTMLDivElement>(null);
 
   const [remediatePrompt, setRemediatePrompt] = useState("");
@@ -101,6 +102,44 @@ export default function ProjectWorkspace({ onBack, apiResult, budget = 4500, car
       }).catch(console.error);
     } else {
       alert("Sharing is not supported on this browser.");
+    }
+  };
+
+  const [expandedSections, setExpandedSections] = useState({
+    design: true, vastu: false, next: false
+  });
+
+  const handleSaveProject = async () => {
+    if (isSaving || !apiResult) return;
+    setIsSaving(true);
+    try {
+      const payload = {
+        projectName: `${budget ? `₹${budget} ` : ''}${geoCity || 'Design'}`, 
+        roomType: apiResult.text.includes('Living Room') ? 'Living Room' : 'Room', // Generic fallback
+        designStyle: 'AI Generated', 
+        textAnalysis: apiResult.text,
+        vastuDetails: null, // Depending on parser logic, we can populate if needed
+        detectedObjects,
+        originalImage: apiResult.image, 
+        daylightImage: apiResult.redesignedImage,
+        nightlightImage: apiResult.nighttimeImage,
+        labelledImage: '' // Placeholder, dynamically generated via UI so typically absent
+      };
+      
+      const res = await fetch('/api/projects/save', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(payload)
+      });
+      
+      if (!res.ok) throw new Error('Failed to save project');
+      // Toast notification might be handled in parent, or we can simply alert/log
+      alert('Project saved successfully to Firebase!');
+    } catch(err: any) {
+      console.error(err);
+      alert(`Error saving project: ${err.message}`);
+    } finally {
+      setIsSaving(false);
     }
   };
 
@@ -253,6 +292,10 @@ export default function ProjectWorkspace({ onBack, apiResult, budget = 4500, car
               <span className="absolute -top-1 -right-1 bg-[#B3541E] text-white text-[10px] font-bold w-4 h-4 flex items-center justify-center rounded-full shadow-sm">{cartItems.length}</span>
             )}
           </div>
+          <button onClick={handleSaveProject} disabled={isSaving} className={`flex items-center gap-2 px-4 py-2 rounded-xl text-sm font-semibold transition-colors print:hidden ${isSaving ? 'bg-gray-100 text-gray-500 cursor-not-allowed' : 'border border-[#B3541E] text-[#B3541E] hover:bg-[#B3541E]/10'}`}>
+            {isSaving ? <Loader2 size={16} className="animate-spin" /> : <Save size={16} />} 
+            {isSaving ? 'Saving...' : 'Save Project'}
+          </button>
           <button onClick={handleShare} className="flex items-center gap-2 px-4 py-2 rounded-xl border border-gray-200 dark:border-[#3A3632] text-sm font-semibold text-gray-500 dark:text-[#A89F94] hover:bg-gray-50 dark:hover:bg-[#2E2B28] transition-colors print:hidden">
             <Share2 size={16} /> Share
           </button>

@@ -3,6 +3,9 @@ dotenv.config();
 
 import express from "express";
 import cors from "cors";
+import { initializeApp, cert } from "firebase-admin/app";
+import { getFirestore } from "firebase-admin/firestore";
+import { getStorage } from "firebase-admin/storage";
 
 const OPENROUTER_API_KEY = process.env.OPENROUTER_API_KEY as string;
 const SERPER_API_KEY = process.env.SERPER_API_KEY as string;
@@ -12,7 +15,38 @@ const app = express();
 const port = process.env.PORT || 5000;
 
 app.use(cors());
-app.use(express.json({ limit: "20mb" }));
+app.use(express.json({ limit: "50mb" })); // Increased limit for 4 base64 images
+
+// ── Firebase Initialization ───────────────────────────────────────────────
+const FIREBASE_PROJECT_ID = process.env.FIREBASE_PROJECT_ID as string;
+const FIREBASE_CLIENT_EMAIL = process.env.FIREBASE_CLIENT_EMAIL as string;
+const FIREBASE_PRIVATE_KEY = process.env.FIREBASE_PRIVATE_KEY 
+  ? process.env.FIREBASE_PRIVATE_KEY.replace(/\\n/g, '\n') // Fix literal newlines from .env 
+  : "";
+const FIREBASE_STORAGE_BUCKET = process.env.FIREBASE_STORAGE_BUCKET as string;
+
+let db: any = null;
+let bucket: any = null;
+
+if (!FIREBASE_PROJECT_ID || !FIREBASE_PRIVATE_KEY || !FIREBASE_STORAGE_BUCKET) {
+  console.error("[STARTUP] ERROR: Firebase credentials missing in backend/.env!");
+} else {
+  try {
+    initializeApp({
+      credential: cert({
+        projectId: FIREBASE_PROJECT_ID,
+        clientEmail: FIREBASE_CLIENT_EMAIL,
+        privateKey: FIREBASE_PRIVATE_KEY,
+      }),
+      storageBucket: FIREBASE_STORAGE_BUCKET
+    });
+    db = getFirestore();
+    bucket = getStorage().bucket();
+    console.log("[STARTUP] Firebase Admin initialized successfully.");
+  } catch (err: any) {
+    console.error("[STARTUP] Firebase init failed:", err.message);
+  }
+}
 
 // ── Startup checks ────────────────────────────────────────────────────────
 if (!OPENROUTER_API_KEY || OPENROUTER_API_KEY.length < 20) {
@@ -556,6 +590,145 @@ app.post("/api/search-products", async (req, res) => {
   } catch (error: any) {
     console.error("Serper Search Error:", error);
     res.status(500).json({ error: "Search failed" });
+  }
+});
+
+// ── FIREBASE ROUTES: Projects ──────────────────────────────────────────────────
+
+// Helper function to upload base64 image to Firebase Storage
+async function uploadBase64Image(base64Str: string, destinationPath: string): Promise<string> {
+  if (!base64Str) return "";
+  if (!bucket) throw new Error("Firebase Storage bucket is not initialized");
+
+  const matches = base64Str.match(/^data:([A-Za-z-+\/]+);base64,(.+)$/);
+  if (!matches || matches.length !== 3) {
+    throw new Error("Invalid base64 string");
+  }
+
+  const mimeType = matches[1];
+  const buffer = Buffer.from(matches[2], "base64");
+  const file = bucket.file(destinationPath);
+
+  await file.save(buffer, {
+    metadata: { contentType: mimeType },
+    public: true, // Requires correct IAM permissions on the bucket or using token-based URLs depending on Firebase rules
+  });
+
+  // Make the file publicly accessible permanently (simplified token approach)
+  await file.makePublic();
+  
+  return `https://storage.googleapis.com/${FIREBASE_STORAGE_BUCKET}/${destinationPath}`;
+}
+
+// POST /api/projects/save
+app.post("/api/projects/save", async (req, res) => {
+  console.log("\n--- Saving Project to Firebase ---");
+  if (!db) return res.status(500).json({ error: "Firebase not initialized" });
+
+  try {
+    const {
+      projectName, roomType, designStyle, textAnalysis, vastuDetails,
+      detectedObjects, daylightImage, nightlightImage, originalImage, labelledImage
+    } = req.body;
+
+    const projectId = `proj_${Date.now()}_${Math.random().toString(36).substring(2, 9)}`;
+
+    console.log(`[Firebase] Uploading images for project ${projectId}...`);
+    
+    // Concurrently upload all 4 images
+    const [daylightUrl, nightlightUrl, originalUrl, labelledUrl] = await Promise.all([
+      uploadBase64Image(daylightImage, `projects/${projectId}/daylight.png`),
+      nightlightImage ? uploadBase64Image(nightlightImage, `projects/${projectId}/nightlight.png`) : Promise.resolve(null),
+      originalImage ? uploadBase64Image(originalImage, `projects/${projectId}/original.png`) : Promise.resolve(null),
+      labelledImage ? uploadBase64Image(labelledImage, `projects/${projectId}/labelled.png`) : Promise.resolve(null)
+    ]);
+
+    const projectData = {
+      id: projectId,
+      projectName: projectName || "My Vastu Design",
+      roomType: roomType || "Room",
+      designStyle: designStyle || "Custom",
+      createdAt: new Date().toISOString(),
+      daylightImageUrl: daylightUrl,
+      nightlightImageUrl: nightlightUrl,
+      originalImageUrl: originalUrl,
+      labelledImageUrl: labelledUrl,
+      textAnalysis: textAnalysis || "",
+      vastuDetails: vastuDetails || null,
+      detectedObjects: detectedObjects || []
+    };
+
+    console.log(`[Firebase] Saving metadata to Firestore...`);
+    await db.collection("projects").doc(projectId).set(projectData);
+
+    console.log(`[Firebase] Project ${projectId} saved successfully.`);
+    return res.status(200).json(projectData);
+  } catch (error: any) {
+    console.error("[Firebase] Error saving project:", error);
+    return res.status(500).json({ error: "Failed to save project", details: error.message });
+  }
+});
+
+// GET /api/projects
+app.get("/api/projects", async (req, res) => {
+  if (!db) return res.status(500).json({ error: "Firebase not initialized" });
+  try {
+    const snapshot = await db.collection("projects").orderBy("createdAt", "desc").get();
+    const projects: any[] = [];
+    snapshot.forEach((doc: any) => {
+      projects.push(doc.data());
+    });
+    return res.status(200).json(projects);
+  } catch (error: any) {
+    console.error("[Firebase] Error fetching projects:", error);
+    return res.status(500).json({ error: "Failed to fetch projects" });
+  }
+});
+
+// GET /api/projects/:id
+app.get("/api/projects/:id", async (req, res) => {
+  if (!db) return res.status(500).json({ error: "Firebase not initialized" });
+  try {
+    const doc = await db.collection("projects").doc(req.params.id).get();
+    if (!doc.exists) return res.status(404).json({ error: "Project not found" });
+    return res.status(200).json(doc.data());
+  } catch (error: any) {
+    console.error("[Firebase] Error fetching project:", error);
+    return res.status(500).json({ error: "Failed to fetch project" });
+  }
+});
+
+// DELETE /api/projects/:id
+app.delete("/api/projects/:id", async (req, res) => {
+  if (!db || !bucket) return res.status(500).json({ error: "Firebase not initialized" });
+  try {
+    const projectId = req.params.id;
+    console.log(`[Firebase] Deleting project ${projectId}...`);
+
+    // Clean up images from Storage
+    const deleteFiles = [
+      `projects/${projectId}/daylight.png`,
+      `projects/${projectId}/nightlight.png`,
+      `projects/${projectId}/original.png`,
+      `projects/${projectId}/labelled.png`
+    ];
+
+    for (const filePath of deleteFiles) {
+      const file = bucket.file(filePath);
+      try {
+        const [exists] = await file.exists();
+        if (exists) await file.delete();
+      } catch (err) {
+        console.warn(`[Firebase] Could not delete ${filePath}:`, err);
+      }
+    }
+
+    await db.collection("projects").doc(projectId).delete();
+    console.log(`[Firebase] Project ${projectId} deleted.`);
+    return res.status(200).json({ success: true });
+  } catch (error: any) {
+    console.error("[Firebase] Error deleting project:", error);
+    return res.status(500).json({ error: "Failed to delete project" });
   }
 });
 

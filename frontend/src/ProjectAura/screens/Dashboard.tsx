@@ -71,9 +71,42 @@ export default function Dashboard({
   const [recentProjects, setRecentProjects] = React.useState<any[]>([]);
 
   React.useEffect(() => {
-    const history = localStorage.getItem('vastu_saved_designs');
-    if (history) setRecentProjects(JSON.parse(history).slice(0, 3));
+    fetchRecentProjects();
   }, []);
+
+  const fetchRecentProjects = async () => {
+    try {
+      const res = await fetch('/api/projects');
+      if (res.ok) {
+        const data = await res.json();
+        setRecentProjects(data.slice(0, 3));
+      }
+    } catch (err) {
+      console.error("Failed to fetch recent projects", err);
+    }
+  };
+
+  const handleOpenProjectClick = async (id: string, presetData: any) => {
+    try {
+      const res = await fetch(`/api/projects/${id}`);
+      if (res.ok) {
+        const fullProject = await res.json();
+        // Map backend schema to what ProjectWorkspace expects
+        const mappedData = {
+          ...fullProject,
+          image: fullProject.originalImageUrl,
+          redesignedImage: fullProject.daylightImageUrl,
+          nighttimeImage: fullProject.nightlightImageUrl,
+          text: fullProject.textAnalysis,
+          products: [],
+          depthMapImage: null
+        };
+        onOpenProject(mappedData);
+      }
+    } catch (err) {
+      console.error("Failed to fetch full project", err);
+    }
+  };
 
   const handleApplyStyle = (item: typeof INSPIRATION_STYLES[0]) => {
     setDesignData((prev: any) => ({
@@ -153,12 +186,12 @@ export default function Dashboard({
               <div 
                 key={project.id || i} 
                 className="group cursor-pointer bg-white dark:bg-[#242220] rounded-[2rem] overflow-hidden border border-gray-100 dark:border-[#3A3632] transition-all hover:shadow-[0_0_12px_rgba(179,84,30,0.15)] hover:-translate-y-1 duration-300" 
-                onClick={() => onOpenProject(project)}
+                onClick={() => handleOpenProjectClick(project.id, project)}
               >
                 <div className="aspect-[4/3] relative overflow-hidden bg-gray-50 dark:bg-[#1A1816] flex items-center justify-center">
-                  {(project.redesignedImage || project.image) ? (
+                  {(project.daylightImageUrl) ? (
                     <img 
-                      src={project.redesignedImage || project.image} 
+                      src={project.daylightImageUrl} 
                       alt={project.roomType} 
                       className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-700" 
                     />
@@ -176,8 +209,8 @@ export default function Dashboard({
                 </div>
                 <div className="p-6">
                   <span className="text-[10px] font-bold uppercase tracking-widest text-[#B3541E] mb-2 block">{project.roomType}</span>
-                  <h3 className="font-bold text-lg mb-1 text-[#1F1F1F] dark:text-[#F5F0E8]">{project.style}</h3>
-                  <p className="text-xs text-gray-400 dark:text-[#6B6460] font-medium">{project.date}</p>
+                  <h3 className="font-bold text-lg mb-1 text-[#1F1F1F] dark:text-[#F5F0E8]">{project.designStyle || project.style}</h3>
+                  <p className="text-xs text-gray-400 dark:text-[#6B6460] font-medium">{project.createdAt ? new Date(project.createdAt).toLocaleDateString() : project.date}</p>
                 </div>
               </div>
             )) : (

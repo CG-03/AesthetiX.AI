@@ -146,19 +146,6 @@ export default function AuraApp() {
     localStorage.setItem('vastu_fontSize', fontSize);
   }, [theme, fontSize]);
 
-  // Cleanup/Validate localStorage on load
-  React.useEffect(() => {
-    try {
-      const history = localStorage.getItem('vastu_saved_designs');
-      if (history) {
-        JSON.parse(history);
-      }
-    } catch (e) {
-      console.error('Corrupted design history detected. Clearing storage.', e);
-      localStorage.removeItem('vastu_saved_designs');
-    }
-  }, []);
-
   const showToast = (message: string, type: 'success' | 'info' = 'success') => {
     setToast({ message, type });
     setTimeout(() => setToast(null), 4000);
@@ -256,28 +243,6 @@ export default function AuraApp() {
       // --- Object Detection (Phase 1) ---
       detectObjects(result.redesignedImage, result.text);
 
-      // Save to History
-      try {
-        const history = localStorage.getItem('vastu_saved_designs');
-        const parsedHistory = history ? JSON.parse(history) : [];
-        const newDesign = {
-          id: Date.now().toString(),
-          date: new Date().toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' }),
-          roomType: designData.roomType,
-          style: designData.style,
-          location: designData.location,
-          budget: designData.budget,
-          ownership: designData.ownership,
-          direction: designData.vastu,
-          text: result.text,
-          image: result.image,
-          redesignedImage: result.redesignedImage
-        };
-        localStorage.setItem('vastu_saved_designs', JSON.stringify([newDesign, ...parsedHistory]));
-      } catch (e) {
-        console.warn('Storage error:', e);
-      }
-
       setCurrentRoute('project-workspace');
     } catch (err: any) {
       console.error(err);
@@ -312,10 +277,21 @@ export default function AuraApp() {
       text: design.text || "",
       image: design.image || "", 
       redesignedImage: design.redesignedImage || "", 
-      nighttimeImage: null,
+      nighttimeImage: design.nighttimeImage || null,
       products: [],
       depthMapImage: null
     });
+    
+    if (design.detectedObjects) {
+      setDetectedObjects(design.detectedObjects);
+    } else {
+      // If we don't have stored objects but have text/image, attempt re-detection fallback
+      if (design.redesignedImage && design.text) {
+        detectObjects(design.redesignedImage, design.text);
+      } else {
+        setDetectedObjects([]);
+      }
+    }
     
     setDesignData({
       image: design.image || null,

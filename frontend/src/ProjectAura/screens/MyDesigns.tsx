@@ -1,5 +1,5 @@
-import React, { useState } from 'react';
-import { Search, Plus, ChevronLeft, ChevronRight, Trash2, Box } from 'lucide-react';
+import React, { useState, useEffect } from 'react';
+import { Search, Plus, ChevronLeft, ChevronRight, Trash2, Box, Loader2 } from 'lucide-react';
 import Sidebar from '../components/Sidebar';
 
 type Page = 'home' | 'my-designs' | 'saved-products' | 'settings' | 'profile';
@@ -16,16 +16,59 @@ export default function MyDesigns({ onNavigate, activePage, onNewProject, onOpen
   const [activeFilter, setActiveFilter] = useState('All Projects');
   const filters = ['All Projects', 'Residential', 'Commercial'];
 
-  React.useEffect(() => {
-    const history = localStorage.getItem('vastu_saved_designs');
-    if (history) setDesigns(JSON.parse(history));
+  const [isLoading, setIsLoading] = useState(true);
+
+  useEffect(() => {
+    fetchProjects();
   }, []);
 
-  const handleDelete = (id: string, e: React.MouseEvent) => {
+  const fetchProjects = async () => {
+    setIsLoading(true);
+    try {
+      const res = await fetch('/api/projects');
+      if (res.ok) {
+        const data = await res.json();
+        setDesigns(data);
+      }
+    } catch (err) {
+      console.error("Failed to fetch projects", err);
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
+  const handleDelete = async (id: string, e: React.MouseEvent) => {
     e.stopPropagation();
-    const updated = designs.filter(d => d.id !== id);
-    setDesigns(updated);
-    localStorage.setItem('vastu_saved_designs', JSON.stringify(updated));
+    try {
+      const res = await fetch(`/api/projects/${id}`, { method: 'DELETE' });
+      if (res.ok) {
+        setDesigns(designs.filter(d => d.id !== id));
+      }
+    } catch (err) {
+      console.error("Failed to delete project", err);
+    }
+  };
+
+  const handleOpenProjectClick = async (id: string) => {
+    try {
+      const res = await fetch(`/api/projects/${id}`);
+      if (res.ok) {
+        const fullProject = await res.json();
+        // Map the backend DB object keys to exactly what ProjectWorkspace expects
+        const mappedData = {
+          ...fullProject,
+          image: fullProject.originalImageUrl,
+          redesignedImage: fullProject.daylightImageUrl,
+          nighttimeImage: fullProject.nightlightImageUrl,
+          text: fullProject.textAnalysis,
+          products: [],
+          depthMapImage: null
+        };
+        onOpenWorkspace(mappedData);
+      }
+    } catch (err) {
+      console.error("Failed to open project details", err);
+    }
   };
 
   return (
@@ -80,11 +123,11 @@ export default function MyDesigns({ onNavigate, activePage, onNewProject, onOpen
                 <div 
                   key={design.id} 
                   className="group cursor-pointer bg-white dark:bg-[#1A1816] rounded-[2rem] overflow-hidden border border-gray-100 dark:border-[#3A3632] shadow-sm hover:shadow-xl transition-all"
-                  onClick={() => onOpenWorkspace(design)}
+                  onClick={() => handleOpenProjectClick(design.id)}
                 >
                   <div className="aspect-[4/3] relative overflow-hidden bg-gray-50 dark:bg-[#1A1816] flex items-center justify-center border-b border-gray-100 dark:border-[#3A3632]">
-                    {(design.redesignedImage || design.image) ? (
-                      <img src={design.redesignedImage || design.image} alt={design.roomType} className="w-full h-full object-cover" />
+                    {(design.daylightImageUrl) ? (
+                      <img src={design.daylightImageUrl} alt={design.roomType} className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-700" />
                     ) : (
                       <div className="flex flex-col items-center justify-center text-gray-200 dark:text-gray-700">
                         <Box size={48} className="mb-2" />
@@ -100,7 +143,9 @@ export default function MyDesigns({ onNavigate, activePage, onNewProject, onOpen
                       </button>
                     </div>
                     <div className="absolute bottom-4 left-4">
-                      <span className="bg-[#B3541E] text-white text-[9px] font-bold px-2 py-1 rounded uppercase tracking-widest">{design.date}</span>
+                      <span className="bg-[#B3541E] text-white text-[9px] font-bold px-2 py-1 rounded uppercase tracking-widest">
+                        {design.createdAt ? new Date(design.createdAt).toLocaleDateString() : 'Recent'}
+                      </span>
                     </div>
                   </div>
                   <div className="p-6">
@@ -108,17 +153,23 @@ export default function MyDesigns({ onNavigate, activePage, onNewProject, onOpen
                       <span className="text-[10px] font-bold uppercase tracking-[0.2em] text-[#B3541E]">
                         {design.roomType || 'Design'}
                       </span>
-                      <span className="text-[10px] font-bold text-gray-400 dark:text-[#6B6460]">ID: {design.id.substring(design.id.length - 4)}</span>
+                      <span className="text-[10px] font-bold text-gray-400 dark:text-[#6B6460]">ID: {design.id ? design.id.substring(design.id.length - 4) : 'NEW'}</span>
                     </div>
                     <h3 className="font-bold text-lg mb-1 group-hover:text-[#B3541E] dark:group-hover:text-[#D4621F] transition-colors dark:text-[#F5F0E8]">
-                      {design.style || 'Custom Vision'}
+                      {design.designStyle || design.style || 'Custom Vision'}
                     </h3>
                   </div>
                 </div>
               ))
+            ) : isLoading ? (
+              <div className="col-span-3 py-24 flex flex-col items-center justify-center bg-white dark:bg-[#1A1816] rounded-[2rem] border border-gray-100 dark:border-[#3A3632]">
+                <Loader2 size={32} className="animate-spin text-[#B3541E] mb-4" />
+                <p className="text-gray-400 dark:text-[#6B6460] font-medium animate-pulse">Loading from Firebase...</p>
+              </div>
             ) : (
               <div className="col-span-3 py-24 text-center bg-white dark:bg-[#1A1816] rounded-[2rem] border border-dashed border-gray-200 dark:border-[#3A3632]">
-                <p className="text-gray-400 dark:text-[#6B6460] font-medium italic">No recent projects yet.</p>
+                <p className="text-[#1F1F1F] dark:text-[#F5F0E8] font-bold text-lg mb-2">No saved projects yet — generate and save your first design!</p>
+                <p className="text-gray-400 dark:text-[#6B6460] font-medium text-sm">Your previously local history has been cleared to migrate to Firebase.</p>
               </div>
             )}
             
