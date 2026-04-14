@@ -25,7 +25,7 @@ interface ProjectWorkspaceProps {
   onOpenCart: () => void;
   detectedObjects?: any[];
   isDetectingObjects?: boolean;
-  onSaveProject: () => void;
+  onSaveProject: (currentImage?: string | null) => void;
   geoCity?: string;
 }
 
@@ -236,7 +236,7 @@ export default function ProjectWorkspace({ onBack, apiResult, budget = 4500, car
           <button 
             onClick={async () => {
               setIsSaving(true);
-              await onSaveProject();
+              await onSaveProject(activeImage);
               setIsSaving(false);
               setHasSaved(true);
               setTimeout(() => setHasSaved(false), 3000);
@@ -311,37 +311,55 @@ export default function ProjectWorkspace({ onBack, apiResult, budget = 4500, car
                 referrerPolicy="no-referrer"
               />
 
-              {/* Floating Labels (Replacing SAM Hotspots) */}
-              {renderMode !== 'original' && detectedObjects && detectedObjects.length > 0 && (
+              {/* Floating Labels & Object Boundaries (Only in Labelled Mode) */}
+              {renderMode === 'labelled' && detectedObjects && detectedObjects.length > 0 && (
                 <div className="absolute inset-0 z-10 pointer-events-none">
                   {detectedObjects.map((obj: any, index: number) => {
                     const isSelected = selectedObjectId === obj.id;
-                    // Simple offset logic for overlapping labels
-                    const offset = (index % 3) * 5;
-
+                    
+                    // Improved positioning: Staggered offsets to prevent label overlap
+                    // We offset the label vertically based on its index and horizontally based on quadrant
+                    const staggerX = (index % 2 === 0 ? 0 : 2); 
+                    const staggerY = (index % 3) * 6; 
+                    
                     return (
-                      <div
-                        key={obj.id}
-                        className="absolute pointer-events-auto transition-all duration-300 transform -translate-x-1/2 -translate-y-1/2"
-                        style={{
-                          left: `${obj.boundingBox.x}%`,
-                          top: `${obj.boundingBox.y + (isSelected ? 0 : offset)}%`,
-                          zIndex: isSelected ? 50 : 30
-                        }}
-                      >
-                        <button
-                          type="button"
-                          onClick={(e) => handleLabelClick(e, obj)}
-                          className={`group flex items-center gap-2 px-4 py-2 rounded-full border-2 transition-all duration-300 shadow-lg whitespace-nowrap
-                            ${isSelected
-                              ? 'bg-[#B3541E] border-[#B3541E] text-white scale-110 shadow-[0_0_20px_rgba(179,84,30,0.6)]'
-                              : 'bg-white dark:bg-[#242220] border-[#B3541E] text-[#1F1F1F] dark:text-[#F5F0E8] hover:scale-105 hover:shadow-[0_0_15px_rgba(179,84,30,0.4)]'}`}
+                      <React.Fragment key={obj.id}>
+                        {/* 1. Dotted Segmented Boundary (The Outline) */}
+                        <div 
+                          className={`absolute border-2 border-dashed transition-all duration-700 ease-in-out rounded-3xl
+                            ${isSelected ? 'border-[#B3541E] bg-[#B3541E]/5 scale-105' : 'border-white/30 bg-transparent opacity-60'}`}
+                          style={{
+                            left: `${obj.boundingBox.x - obj.boundingBox.width / 2}%`,
+                            top: `${obj.boundingBox.y - obj.boundingBox.height / 2}%`,
+                            width: `${obj.boundingBox.width}%`,
+                            height: `${obj.boundingBox.height}%`,
+                            pointerEvents: 'none',
+                          }}
+                        />
+
+                        {/* 2. Glassmorphic Floating Label */}
+                        <div
+                          className="absolute pointer-events-auto transition-all duration-500 transform -translate-x-1/2 -translate-y-1/2"
+                          style={{
+                            left: `${obj.boundingBox.x + staggerX}%`,
+                            top: `${obj.boundingBox.y - (obj.boundingBox.height / 2) - 8 + staggerY}%`,
+                            zIndex: isSelected ? 50 : 30
+                          }}
                         >
-                          <div className={`w-2 h-2 rounded-full animate-pulse ${isSelected ? 'bg-white' : 'bg-[#B3541E]'}`} />
-                          <span className="text-[11px] font-bold uppercase tracking-wider">{obj.label}</span>
-                          <ChevronRight size={14} className={`transition-transform ${isSelected ? 'rotate-90' : 'group-hover:translate-x-0.5'}`} />
-                        </button>
-                      </div>
+                          <button
+                            type="button"
+                            onClick={(e) => handleLabelClick(e, obj)}
+                            className={`group flex items-center gap-2 px-4 py-2 rounded-full border transition-all duration-300 shadow-xl backdrop-blur-md whitespace-nowrap
+                              ${isSelected
+                                ? 'bg-[#B3541E] border-[#B3541E] text-white scale-110 shadow-[0_0_20px_rgba(179,84,30,0.6)]'
+                                : 'bg-white/10 dark:bg-black/20 border-white/20 text-white hover:bg-white/20 hover:scale-105 hover:shadow-[0_0_15px_rgba(255,255,255,0.2)]'}`}
+                          >
+                            <div className={`w-2 h-2 rounded-full animate-pulse ${isSelected ? 'bg-white' : 'bg-[#B3541E]'}`} />
+                            <span className="text-[11px] font-bold uppercase tracking-wider">{obj.label}</span>
+                            <ChevronRight size={14} className={`transition-transform ${isSelected ? 'rotate-90' : 'group-hover:translate-x-0.5'}`} />
+                          </button>
+                        </div>
+                      </React.Fragment>
                     );
                   })}
                 </div>

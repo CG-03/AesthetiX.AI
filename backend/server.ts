@@ -698,24 +698,31 @@ app.get("/api/projects/:id", async (req, res) => {
   const { id } = req.params;
   console.log(`\n--- Fetching Project Details: ${id} ---`);
   try {
-    const resource = await cloudinary.api.resource(id);
+    const resource = await cloudinary.api.resource(id, { context: true });
     
     const project = {
       id: resource.public_id,
-      originalImageUrl: resource.context?.custom?.originalImage || resource.secure_url,
+      originalImageUrl: resource.context?.originalImage || resource.secure_url,
       daylightImageUrl: resource.secure_url,
       nightlightImageUrl: null,
-      textAnalysis: resource.context?.custom?.analysisSummary || "",
-      roomType: resource.context?.custom?.roomType || "Room",
-      style: resource.context?.custom?.style || "Modern",
-      budget: Number(resource.context?.custom?.budget || 0),
-      location: resource.context?.custom?.location || "Unknown"
+      textAnalysis: resource.context?.analysisSummary || "",
+      roomType: resource.context?.roomType || "Room",
+      style: resource.context?.style || "Modern",
+      budget: Number(resource.context?.budget || 0),
+      location: resource.context?.location || "Unknown",
+      detectedObjects: resource.context?.detectedObjects ? JSON.parse(resource.context.detectedObjects) : []
     };
 
     res.status(200).json(project);
   } catch (error: any) {
-    console.error("[Cloudinary] Get details failed:", error);
-    res.status(500).json({ error: "Failed to fetch project details" });
+    console.error("[Cloudinary] Get details failed for ID:", id);
+    console.error("Error Message:", error.message);
+    if (error.error) console.error("Cloudinary Error Data:", error.error);
+    
+    res.status(error.http_code || 500).json({ 
+      error: "Failed to fetch project details",
+      details: error.message
+    });
   }
 });
 

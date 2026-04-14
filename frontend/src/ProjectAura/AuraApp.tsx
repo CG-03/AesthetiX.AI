@@ -257,7 +257,7 @@ export default function AuraApp() {
       detectObjects(result.redesignedImage, result.text);
 
       // --- Automated Cloudinary Sync ---
-      saveProject(result);
+      saveProject(null, result);
 
       setCurrentRoute('project-workspace');
     } catch (err: any) {
@@ -268,8 +268,8 @@ export default function AuraApp() {
     }
   };
 
-  const saveProject = async (overrideResult?: any) => {
-    const resultToSave = overrideResult || apiResult;
+  const saveProject = async (currentImage?: string | null, manualResult?: any) => {
+    const resultToSave = manualResult || apiResult;
     if (!resultToSave) return;
 
     try {
@@ -278,7 +278,7 @@ export default function AuraApp() {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
-          redesignedImage: resultToSave.redesignedImage,
+          redesignedImage: currentImage || resultToSave.redesignedImage,
           originalImage: resultToSave.image,
           roomType: designData.roomType,
           style: designData.style,
@@ -312,9 +312,6 @@ export default function AuraApp() {
       }
     }
   };
-      setIsGenerating(false);
-    }
-  };
 
   const detectObjects = async (redesignedImage: string, analysisText: string) => {
     setIsDetectingObjects(true);
@@ -338,27 +335,34 @@ export default function AuraApp() {
 
   const handleOpenSavedDesign = (design: any) => {
     setApiResult({
-      text: design.text || "",
-      image: design.image || "",
-      redesignedImage: design.redesignedImage || "",
-      nighttimeImage: null,
-      products: [],
-      depthMapImage: null
+      text: design.text || design.textAnalysis || "",
+      image: design.image || design.originalImageUrl || "",
+      redesignedImage: design.redesignedImage || design.daylightImageUrl || "",
+      nighttimeImage: design.nighttimeImage || design.nightlightImageUrl || null,
+      products: design.products || [],
+      depthMapImage: design.depthMapImage || null
     });
 
     setDesignData({
-      image: design.image || null,
+      image: design.image || design.originalImageUrl || null,
       vastu: design.direction || 'North',
       ownership: design.ownership || 'own',
       location: design.location || 'Mumbai, India',
-      lat: null,
-      lng: null,
+      lat: design.lat || null,
+      lng: design.lng || null,
       budget: design.budget || 4500,
       style: design.style || 'Modern',
       roomType: design.roomType || 'Bedroom',
     });
 
-    showToast(`Loaded: ${design.roomType || 'Project'} from ${design.date}`, 'success');
+    // Restore interactive labels if they exist in the saved payload
+    if (design.detectedObjects) {
+      setDetectedObjects(design.detectedObjects);
+    } else {
+      setDetectedObjects([]);
+    }
+
+    showToast(`Loaded: ${design.roomType || 'Project'} from ${design.date || 'Cloud'}`, 'success');
     setCurrentRoute('project-workspace');
   };
 

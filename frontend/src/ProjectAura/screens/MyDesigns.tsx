@@ -51,7 +51,7 @@ export default function MyDesigns({ onNavigate, activePage, onNewProject, onOpen
 
   const handleOpenProjectClick = async (id: string) => {
     try {
-      const res = await fetch(`/api/projects/${id}`);
+      const res = await fetch(`/api/projects/${encodeURIComponent(id)}`);
       if (res.ok) {
         const fullProject = await res.json();
         // Map the backend DB object keys to exactly what ProjectWorkspace expects

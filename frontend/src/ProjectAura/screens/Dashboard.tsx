@@ -88,7 +88,7 @@ export default function Dashboard({
 
   const handleOpenProjectClick = async (id: string, presetData: any) => {
     try {
-      const res = await fetch(`/api/projects/${id}`);
+      const res = await fetch(`/api/projects/${encodeURIComponent(id)}`);
       if (res.ok) {
         const fullProject = await res.json();
         // Map backend schema to what ProjectWorkspace expects
@@ -98,13 +98,19 @@ export default function Dashboard({
           redesignedImage: fullProject.daylightImageUrl,
           nighttimeImage: fullProject.nightlightImageUrl,
           text: fullProject.textAnalysis,
+          detectedObjects: fullProject.detectedObjects || [],
           products: [],
           depthMapImage: null
         };
         onOpenProject(mappedData);
+      } else {
+        const errData = await res.json().catch(() => ({}));
+        console.error("Dashboard: Project fetch failed", errData);
+        alert("Could not load project from cloud. Please check your connection.");
       }
     } catch (err) {
       console.error("Failed to fetch full project", err);
+      alert("An error occurred while opening the project.");
     }
   };
 
@@ -131,7 +137,7 @@ export default function Dashboard({
         {/* Welcome Header */}
         <header className="mb-16 flex items-center justify-between">
           <div>
-            <h1 className="text-4xl font-bold tracking-tight mb-2 text-[#1F1F1F] dark:text-[#F5F0E8]">
+            <h1 className="text-4xl font-bold tracking-tight mb-2 text-[#02796F] dark:text-[#02796F]">
               {userProfile ? `Welcome back, ${userProfile.name.split(' ')[0]}.` : 'Welcome to VastuVision.'}
             </h1>
             <p className="text-gray-500 dark:text-[#A89F94] text-sm font-medium">
