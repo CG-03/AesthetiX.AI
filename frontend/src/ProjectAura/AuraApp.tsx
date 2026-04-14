@@ -256,33 +256,62 @@ export default function AuraApp() {
       // --- Object Detection (Phase 1) ---
       detectObjects(result.redesignedImage, result.text);
 
-      // Save to History
+      // --- Automated Cloudinary Sync ---
+      saveProject(result);
+
+      setCurrentRoute('project-workspace');
+    } catch (err: any) {
+      console.error(err);
+      showToast(err.message, 'info');
+    } finally {
+      setIsGenerating(false);
+    }
+  };
+
+  const saveProject = async (overrideResult?: any) => {
+    const resultToSave = overrideResult || apiResult;
+    if (!resultToSave) return;
+
+    try {
+      console.log("[Cloudinary] Syncing project...");
+      const response = await fetch('/api/projects', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          redesignedImage: resultToSave.redesignedImage,
+          originalImage: resultToSave.image,
+          roomType: designData.roomType,
+          style: designData.style,
+          location: designData.location,
+          budget: designData.budget,
+          textAnalysis: resultToSave.text,
+          detectedObjects: detectedObjects
+        })
+      });
+
+      if (response.ok) {
+        showToast('Project synced with Cloudinary', 'success');
+      } else {
+        throw new Error('Cloudinary sync failed');
+      }
+    } catch (e) {
+      console.error('Save error:', e);
+      // Fallback to local storage if backend fails
       try {
         const history = localStorage.getItem('vastu_saved_designs');
         const parsedHistory = history ? JSON.parse(history) : [];
         const newDesign = {
           id: Date.now().toString(),
-          date: new Date().toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' }),
-          roomType: designData.roomType,
-          style: designData.style,
-          location: designData.location,
-          budget: designData.budget,
-          ownership: designData.ownership,
-          direction: designData.vastu,
-          text: result.text,
-          image: result.image,
-          redesignedImage: result.redesignedImage
+          date: new Date().toLocaleDateString(),
+          ...designData,
+          ...resultToSave
         };
         localStorage.setItem('vastu_saved_designs', JSON.stringify([newDesign, ...parsedHistory]));
-      } catch (e) {
-        console.warn('Storage error:', e);
+      } catch (localErr) {
+        console.warn('LocalStorage fallback failed', localErr);
       }
-
-      setCurrentRoute('project-workspace');
-    } catch (err: any) {
-      console.error(err);
-      alert(`Design Generation Error: ${err.message}`);
-    } finally {
+    }
+  };
       setIsGenerating(false);
     }
   };
@@ -400,6 +429,7 @@ export default function AuraApp() {
           onOpenCart={() => setIsCartOpen(true)}
           detectedObjects={detectedObjects}
           isDetectingObjects={isDetectingObjects}
+          onSaveProject={() => saveProject()}
         />
       )}
 

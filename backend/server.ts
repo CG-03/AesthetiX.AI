@@ -3,6 +3,7 @@ dotenv.config();
 
 import express from "express";
 import cors from "cors";
+import { v2 as cloudinary } from "cloudinary";
 
 const OPENROUTER_API_KEY = process.env.OPENROUTER_API_KEY as string;
 const SERPER_API_KEY = process.env.SERPER_API_KEY as string;
@@ -14,6 +15,13 @@ const port = process.env.PORT || 5000;
 app.use(cors());
 app.use(express.json({ limit: "20mb" }));
 
+// ── Cloudinary Configuration ──────────────────────────────────────────────
+cloudinary.config({
+  cloud_name: process.env.CLOUDINARY_CLOUD_NAME,
+  api_key: process.env.CLOUDINARY_API_KEY,
+  api_secret: process.env.CLOUDINARY_API_SECRET,
+});
+
 // ── Startup checks ────────────────────────────────────────────────────────
 if (!OPENROUTER_API_KEY || OPENROUTER_API_KEY.length < 20) {
   console.error("[STARTUP] ERROR: OPENROUTER_API_KEY is missing or invalid in backend/.env!");
@@ -24,6 +32,13 @@ if (!SERPER_API_KEY) {
   console.error("[STARTUP] ERROR: SERPER_API_KEY is missing in backend/.env!");
 } else {
   console.log(`[STARTUP] Serper API key loaded: ${SERPER_API_KEY.substring(0, 12)}...`);
+}
+
+// Cloudinary check
+if (!process.env.CLOUDINARY_CLOUD_NAME || !process.env.CLOUDINARY_API_KEY) {
+  console.error("[STARTUP] ERROR: Cloudinary credentials missing in backend/.env!");
+} else {
+  console.log(`[STARTUP] Cloudinary configured for: ${process.env.CLOUDINARY_CLOUD_NAME}`);
 }
 
 // Health check route
@@ -595,6 +610,131 @@ app.post("/api/search-products", async (req, res) => {
   }
 });
 
+// ── Project Management (Cloudinary) ───────────────────────────────────────
+
+/**
+ * Save a new project to Cloudinary
+ * We store the metadata inside Cloudinary Context
+ */
+app.post("/api/projects", async (req, res) => {
+  console.log("\n--- Saving Project to Cloudinary ---");
+  try {
+    const { 
+      redesignedImage, 
+      originalImage, 
+      roomType, 
+      style, 
+      location, 
+      budget, 
+      textAnalysis, 
+      detectedObjects 
+    } = req.body;
+
+    if (!redesignedImage) return res.status(400).json({ error: "Missing image" });
+
+    // Upload to Cloudinary
+    const uploadRes = await cloudinary.uploader.upload(redesignedImage, {
+      folder: "vastuvision/projects",
+      tags: ["vastu-project"],
+      context: {
+        roomType: roomType || "Room",
+        style: style || "Modern",
+        location: location || "Unknown",
+        budget: String(budget || 0),
+        // textAnalysis can be long, we might need to truncate or use metadata
+        // For now, we store basic info. Full analysis could be stored in a separate field or Cloudinary metadata
+        analysisSummary: textAnalysis ? textAnalysis.substring(0, 1000) : "",
+        originalImage: originalImage ? originalImage.substring(0, 100) : "", // Just a hint
+      },
+      // Store the objects as a JSON string in a custom field or metadata if enabled
+      // For now, we'll use context for simple retrieval
+    });
+
+    console.log(`[Cloudinary] Project saved. Public ID: ${uploadRes.public_id}`);
+    res.status(200).json({ success: true, project: uploadRes });
+  } catch (error: any) {
+    console.error("[Cloudinary] Save failed:", error);
+    res.status(500).json({ error: "Failed to save project to Cloudinary" });
+  }
+});
+
+/**
+ * List all projects from Cloudinary
+ */
+app.get("/api/projects", async (req, res) => {
+  console.log("\n--- Fetching Projects from Cloudinary ---");
+  try {
+    // Search for assets with the 'vastu-project' tag
+    // Note: This requires the search API to be enabled/indexed in Cloudinary
+    const result = await cloudinary.search
+      .expression("tags:vastu-project")
+      .with_field("context")
+      .sort_by("created_at", "desc")
+      .max_results(20)
+      .execute();
+
+    const projects = result.resources.map((resource: any) => ({
+      id: resource.public_id,
+      date: new Date(resource.created_at).toLocaleDateString(),
+      image: resource.secure_url, // This is the redesigned image
+      roomType: resource.context?.roomType || "Room",
+      style: resource.context?.style || "Modern",
+      location: resource.context?.location || "Unknown",
+      budget: Number(resource.context?.budget || 0),
+      text: resource.context?.analysisSummary || ""
+    }));
+
+    res.status(200).json(projects);
+  } catch (error: any) {
+    console.error("[Cloudinary] Fetch failed:", error);
+    res.status(500).json({ error: "Failed to fetch projects" });
+  }
+});
+
+/**
+ * Get a single project from Cloudinary
+ */
+app.get("/api/projects/:id", async (req, res) => {
+  const { id } = req.params;
+  console.log(`\n--- Fetching Project Details: ${id} ---`);
+  try {
+    const resource = await cloudinary.api.resource(id);
+    
+    const project = {
+      id: resource.public_id,
+      originalImageUrl: resource.context?.custom?.originalImage || resource.secure_url,
+      daylightImageUrl: resource.secure_url,
+      nightlightImageUrl: null,
+      textAnalysis: resource.context?.custom?.analysisSummary || "",
+      roomType: resource.context?.custom?.roomType || "Room",
+      style: resource.context?.custom?.style || "Modern",
+      budget: Number(resource.context?.custom?.budget || 0),
+      location: resource.context?.custom?.location || "Unknown"
+    };
+
+    res.status(200).json(project);
+  } catch (error: any) {
+    console.error("[Cloudinary] Get details failed:", error);
+    res.status(500).json({ error: "Failed to fetch project details" });
+  }
+});
+
+/**
+ * Delete a project from Cloudinary
+ */
+app.delete("/api/projects/:id", async (req, res) => {
+  const { id } = req.params;
+  console.log(`\n--- Deleting Project: ${id} ---`);
+  try {
+    await cloudinary.uploader.destroy(id);
+    res.status(200).json({ success: true });
+  } catch (error: any) {
+    console.error("[Cloudinary] Delete failed:", error);
+    res.status(500).json({ error: "Failed to delete project" });
+  }
+});
+
 app.listen(port, () => {
   console.log(`Backend server running on http://localhost:${port}`);
 });
+

@@ -2,7 +2,7 @@ import React, { useState, useEffect } from 'react';
 import {
   PenTool, LayoutTemplate, Tag, ArrowLeft, Download, Share2, X,
   Maximize2, ShoppingCart, Loader2, Sofa, Lamp, Layers,
-  Paintbrush, Wrench, MoreHorizontal, BarChart3, ChevronDown, ChevronUp, ChevronRight, KeyRound, HardHat, ExternalLink, Sparkles, Image as ImageIcon, Sun, Moon, Scan
+  Paintbrush, Wrench, MoreHorizontal, BarChart3, ChevronDown, ChevronUp, ChevronRight, KeyRound, HardHat, ExternalLink, Sparkles, Image as ImageIcon, Sun, Moon, Scan, Save, Check
 } from 'lucide-react';
 
 import html2canvas from 'html2canvas';
@@ -25,6 +25,7 @@ interface ProjectWorkspaceProps {
   onOpenCart: () => void;
   detectedObjects?: any[];
   isDetectingObjects?: boolean;
+  onSaveProject: () => void;
   geoCity?: string;
 }
 
@@ -35,7 +36,7 @@ const products = [
   { id: 4, name: 'Earthen Triptych Art', brand: 'Vastu AI Fine Arts', price: 320, image: 'https://images.unsplash.com/photo-1579783902614-a3fb3927b6a5?w=400&h=300&fit=crop' },
 ];
 
-export default function ProjectWorkspace({ onBack, apiResult, budget = 4500, cartItems, onAddToCart, onOpenCart, detectedObjects = [], isDetectingObjects = false, geoCity }: ProjectWorkspaceProps) {
+export default function ProjectWorkspace({ onBack, apiResult, budget = 4500, cartItems, onAddToCart, onOpenCart, detectedObjects = [], isDetectingObjects = false, onSaveProject, geoCity }: ProjectWorkspaceProps) {
   const [renderMode, setRenderMode] = useState<'original' | 'daylight' | 'nighttime' | 'labelled'>('daylight');
   const [costMode, setCostMode] = useState<'retail' | 'custom'>('retail');
   const [selectedProduct, setSelectedProduct] = useState<any>(null);
@@ -55,6 +56,8 @@ export default function ProjectWorkspace({ onBack, apiResult, budget = 4500, car
   const [searchResult, setSearchResult] = useState<any>(null);
   const [showProductPopup, setShowProductPopup] = useState(false);
   const [activeLabel, setActiveLabel] = useState<any>(null);
+  const [isSaving, setIsSaving] = useState(false);
+  const [hasSaved, setHasSaved] = useState(false);
 
   useEffect(() => {
     if (apiResult?.redesignedImage) {
@@ -229,6 +232,20 @@ export default function ProjectWorkspace({ onBack, apiResult, budget = 4500, car
           </div>
           <button onClick={handleShare} className="flex items-center gap-2 px-4 py-2 rounded-xl border border-gray-200 dark:border-[#3A3632] text-sm font-semibold text-gray-500 dark:text-[#A89F94] hover:bg-gray-50 dark:hover:bg-[#2E2B28] transition-colors print:hidden">
             <Share2 size={16} /> Share
+          </button>
+          <button 
+            onClick={async () => {
+              setIsSaving(true);
+              await onSaveProject();
+              setIsSaving(false);
+              setHasSaved(true);
+              setTimeout(() => setHasSaved(false), 3000);
+            }}
+            disabled={isSaving}
+            className={`flex items-center gap-2 px-4 py-2 rounded-xl font-bold text-sm transition-all shadow-sm print:hidden ${hasSaved ? 'bg-green-500 text-white' : 'bg-white dark:bg-[#1A1816] text-[#B3541E] border border-gray-100 dark:border-[#3A3632] hover:bg-gray-50 dark:hover:bg-[#2E2B28]'}`}
+          >
+            {isSaving ? <Loader2 size={16} className="animate-spin" /> : hasSaved ? <Check size={16} /> : <Save size={16} />}
+            {hasSaved ? 'Saved to Cloud' : 'Save Project'}
           </button>
           <button onClick={handlePrint} className="flex items-center gap-2 px-4 py-2 rounded-xl bg-[#B3541E] text-white text-sm font-semibold hover:bg-[#8E4318] transition-colors shadow-lg shadow-[#B3541E]/20 print:hidden">
             <Download size={16} /> Export PDF
