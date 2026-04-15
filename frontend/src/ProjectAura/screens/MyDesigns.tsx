@@ -15,6 +15,7 @@ export default function MyDesigns({ onNavigate, activePage, onNewProject, onOpen
   const [designs, setDesigns] = React.useState<any[]>([]);
   const [activeFilter, setActiveFilter] = useState('All Projects');
   const filters = ['All Projects', 'Residential', 'Commercial'];
+  const [loadingProjectId, setLoadingProjectId] = useState<string | null>(null);
 
   const [isLoading, setIsLoading] = useState(true);
 
@@ -50,24 +51,24 @@ export default function MyDesigns({ onNavigate, activePage, onNewProject, onOpen
   };
 
   const handleOpenProjectClick = async (id: string) => {
+    setLoadingProjectId(id);
     try {
       const res = await fetch(`/api/projects/${encodeURIComponent(id)}`);
       if (res.ok) {
         const fullProject = await res.json();
-        // Map the backend DB object keys to exactly what ProjectWorkspace expects
-        const mappedData = {
-          ...fullProject,
-          image: fullProject.originalImageUrl,
-          redesignedImage: fullProject.daylightImageUrl,
-          nighttimeImage: fullProject.nightlightImageUrl,
-          text: fullProject.textAnalysis,
-          products: [],
-          depthMapImage: null
-        };
-        onOpenWorkspace(mappedData);
+        // Pass raw payload — handleOpenSavedDesign in AuraApp handles all field mapping
+        onOpenWorkspace(fullProject);
+        window.scrollTo({ top: 0, behavior: 'smooth' });
+      } else {
+        const errData = await res.json().catch(() => ({}));
+        console.error("MyDesigns: Project fetch failed", errData);
+        alert("Could not load project from cloud. Please check your connection.");
       }
     } catch (err) {
       console.error("Failed to open project details", err);
+      alert("An error occurred while opening the project.");
+    } finally {
+      setLoadingProjectId(null);
     }
   };
 
@@ -126,8 +127,14 @@ export default function MyDesigns({ onNavigate, activePage, onNewProject, onOpen
                   onClick={() => handleOpenProjectClick(design.id)}
                 >
                   <div className="aspect-[4/3] relative overflow-hidden bg-gray-50 dark:bg-[#1A1816] flex items-center justify-center border-b border-gray-100 dark:border-[#3A3632]">
-                    {(design.daylightImageUrl) ? (
-                      <img src={design.daylightImageUrl} alt={design.roomType} className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-700" />
+                    {/* Per-card loading spinner */}
+                    {loadingProjectId === design.id && (
+                      <div className="absolute inset-0 z-20 bg-black/50 backdrop-blur-sm flex items-center justify-center">
+                        <Loader2 size={32} className="animate-spin text-white" />
+                      </div>
+                    )}
+                    {(design.daylightImageUrl || design.image) ? (
+                      <img src={design.daylightImageUrl || design.image} alt={design.roomType} className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-700" />
                     ) : (
                       <div className="flex flex-col items-center justify-center text-gray-200 dark:text-gray-700">
                         <Box size={48} className="mb-2" />

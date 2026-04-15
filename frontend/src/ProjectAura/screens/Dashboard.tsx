@@ -1,5 +1,5 @@
-import React from 'react';
-import { Plus, ArrowRight, Sparkles, ShoppingBag, Clock, ChevronRight } from 'lucide-react';
+import React, { useState } from 'react';
+import { Plus, ArrowRight, Sparkles, ShoppingBag, Clock, ChevronRight, Loader2 } from 'lucide-react';
 import Sidebar from '../components/Sidebar';
 
 type Page = 'home' | 'my-designs' | 'saved-products' | 'settings' | 'profile';
@@ -69,6 +69,7 @@ export default function Dashboard({
   showToast
 }: DashboardProps) {
   const [recentProjects, setRecentProjects] = React.useState<any[]>([]);
+  const [loadingProjectId, setLoadingProjectId] = useState<string | null>(null);
 
   React.useEffect(() => {
     fetchRecentProjects();
@@ -86,23 +87,15 @@ export default function Dashboard({
     }
   };
 
-  const handleOpenProjectClick = async (id: string, presetData: any) => {
+  const handleOpenProjectClick = async (id: string) => {
+    setLoadingProjectId(id);
     try {
       const res = await fetch(`/api/projects/${encodeURIComponent(id)}`);
       if (res.ok) {
         const fullProject = await res.json();
-        // Map backend schema to what ProjectWorkspace expects
-        const mappedData = {
-          ...fullProject,
-          image: fullProject.originalImageUrl,
-          redesignedImage: fullProject.daylightImageUrl,
-          nighttimeImage: fullProject.nightlightImageUrl,
-          text: fullProject.textAnalysis,
-          detectedObjects: fullProject.detectedObjects || [],
-          products: [],
-          depthMapImage: null
-        };
-        onOpenProject(mappedData);
+        // Pass through as-is — handleOpenSavedDesign in AuraApp handles all field mapping
+        onOpenProject(fullProject);
+        window.scrollTo({ top: 0, behavior: 'smooth' });
       } else {
         const errData = await res.json().catch(() => ({}));
         console.error("Dashboard: Project fetch failed", errData);
@@ -111,6 +104,8 @@ export default function Dashboard({
     } catch (err) {
       console.error("Failed to fetch full project", err);
       alert("An error occurred while opening the project.");
+    } finally {
+      setLoadingProjectId(null);
     }
   };
 
@@ -192,12 +187,18 @@ export default function Dashboard({
               <div 
                 key={project.id || i} 
                 className="group cursor-pointer bg-white dark:bg-[#242220] rounded-[2rem] overflow-hidden border border-gray-100 dark:border-[#3A3632] transition-all hover:shadow-[0_0_12px_rgba(179,84,30,0.15)] hover:-translate-y-1 duration-300" 
-                onClick={() => handleOpenProjectClick(project.id, project)}
+                onClick={() => handleOpenProjectClick(project.id)}
               >
                 <div className="aspect-[4/3] relative overflow-hidden bg-gray-50 dark:bg-[#1A1816] flex items-center justify-center">
-                  {(project.daylightImageUrl) ? (
+                  {/* Loading spinner overlay on the clicked card */}
+                  {loadingProjectId === project.id && (
+                    <div className="absolute inset-0 z-20 bg-black/50 backdrop-blur-sm flex items-center justify-center">
+                      <Loader2 size={32} className="animate-spin text-white" />
+                    </div>
+                  )}
+                  {(project.daylightImageUrl || project.image) ? (
                     <img 
-                      src={project.daylightImageUrl} 
+                      src={project.daylightImageUrl || project.image} 
                       alt={project.roomType} 
                       className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-700" 
                     />

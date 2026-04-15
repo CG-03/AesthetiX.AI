@@ -1,15 +1,14 @@
-Write-Host "Starting VastuVision AI Multi-Service Environment..." -ForegroundColor Green
+# Start VastuVision AI - Triple Terminal Launcher
+Write-Host "🚀 Launching VastuVision AI Suite..." -ForegroundColor Cyan
 
-# 1. Start Python Microservice
-Write-Host "Starting YOLO11-seg Microservice (port 8000) in new window..." -ForegroundColor Cyan
-Start-Process powershell -ArgumentList "-NoExit", "-Command", "cd backend/python; if (!(Test-Path venv)) { python -m venv venv }; .\venv\Scripts\activate; pip install -r requirements.txt; uvicorn main:app --port 8000 --reload"
+# 1. Backend Server
+# Note: Using 'title' command which works in most Windows PowerShell/CMD environments
+Start-Process powershell -ArgumentList "-NoExit", "-Command", "title 'VastuVision Backend'; Write-Host '--- 🛠️ BACKEND SERVER ---' -ForegroundColor Yellow; cd backend; npm run dev"
 
-# 2. Start Node.js Backend
-Write-Host "Starting Express Backend (port 5000) in new window..." -ForegroundColor Yellow
-Start-Process powershell -ArgumentList "-NoExit", "-Command", "cd backend; npm run dev"
+# 2. Frontend Application
+Start-Process powershell -ArgumentList "-NoExit", "-Command", "title 'VastuVision Frontend'; Write-Host '--- 🎨 FRONTEND APP ---' -ForegroundColor Green; cd frontend; npm run dev"
 
-# 3. Start React Frontend
-Write-Host "Starting React Frontend (port 5173) in new window..." -ForegroundColor Magenta
-Start-Process powershell -ArgumentList "-NoExit", "-Command", "cd frontend; npm run dev"
+# 3. Python AI Service
+Start-Process powershell -ArgumentList "-NoExit", "-Command", "title 'VastuVision Python Service'; Write-Host '--- 🤖 PYTHON AI SERVICE ---' -ForegroundColor Blue; cd backend/python; if (!(Test-Path venv)) { Write-Host 'Creating Virtual Env...' -ForegroundColor Gray; python -m venv venv; .\venv\Scripts\pip install -r requirements.txt }; .\venv\Scripts\python -m uvicorn main:app --port 8000 --reload"
 
-Write-Host "All services started!" -ForegroundColor Green
+Write-Host "✅ All terminals launched. Check individual windows for logs." -ForegroundColor Green

@@ -184,6 +184,7 @@ export default function AuraApp() {
   const [isGenerating, setIsGenerating] = useState(false);
   const [isDetectingObjects, setIsDetectingObjects] = useState(false);
   const [detectedObjects, setDetectedObjects] = useState<any[]>([]);
+  const [isProjectSynced, setIsProjectSynced] = useState(false);
 
   const [apiResult, setApiResult] = useState<{
     text: string;
@@ -205,6 +206,8 @@ export default function AuraApp() {
   };
 
   const handleNewProject = () => {
+    setIsProjectSynced(false);
+    setApiResult(null);
     setCurrentRoute('step1');
   };
 
@@ -256,8 +259,9 @@ export default function AuraApp() {
       // --- Object Detection (Phase 1) ---
       detectObjects(result.redesignedImage, result.text);
 
-      // --- Automated Cloudinary Sync ---
-      saveProject(null, result);
+      // --- Automated Cloudinary Sync Disabled (Manual Save Only) ---
+      // saveProject(null, result);
+      // setIsProjectSynced(true);
 
       setCurrentRoute('project-workspace');
     } catch (err: any) {
@@ -274,22 +278,30 @@ export default function AuraApp() {
 
     try {
       console.log("[Cloudinary] Syncing project...");
-      const response = await fetch('/api/projects', {
+      const response = await fetch('/api/projects/save', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
-          redesignedImage: currentImage || resultToSave.redesignedImage,
+          projectName: `${designData.roomType} in ${designData.style}`,
+          redesignedImage: resultToSave.redesignedImage,
           originalImage: resultToSave.image,
+          nighttimeImage: resultToSave.nighttimeImage || null,
+          labelledImage: resultToSave.depthMapImage || null, // YOLO11x-seg Labelled render
           roomType: designData.roomType,
           style: designData.style,
           location: designData.location,
           budget: designData.budget,
+          direction: designData.vastu,
+          ownership: designData.ownership,
           textAnalysis: resultToSave.text,
-          detectedObjects: detectedObjects
+          detectedObjects: detectedObjects,
+          vastuDetails: "", // Vastu score is currently extracted from textAnalysis on the frontend
+          colorPalette: [] // Extracted by backend hex helper during save
         })
       });
 
       if (response.ok) {
+        setIsProjectSynced(true);
         showToast('Project synced with Cloudinary', 'success');
       } else {
         throw new Error('Cloudinary sync failed');
@@ -315,7 +327,7 @@ export default function AuraApp() {
 
   const detectObjects = async (redesignedImage: string, analysisText: string) => {
     setIsDetectingObjects(true);
-    console.log("[SAM] Starting object detection...");
+    console.log("[YOLO11x-seg] Starting object detection...");
     try {
       const response = await fetch('/api/detect-objects', {
         method: 'POST',
@@ -325,45 +337,59 @@ export default function AuraApp() {
       if (!response.ok) throw new Error('Detection failed');
       const data = await response.json();
       setDetectedObjects(data);
-      console.log("[SAM] Detected objects:", data);
+      console.log("[YOLO11x-seg] Detected objects:", data);
     } catch (err) {
-      console.error("[SAM] Error detecting objects:", err);
+      console.error("[YOLO11x-seg] Error detecting objects:", err);
     } finally {
       setIsDetectingObjects(false);
     }
   };
 
-  const handleOpenSavedDesign = (design: any) => {
-    setApiResult({
-      text: design.text || design.textAnalysis || "",
-      image: design.image || design.originalImageUrl || "",
-      redesignedImage: design.redesignedImage || design.daylightImageUrl || "",
-      nighttimeImage: design.nighttimeImage || design.nightlightImageUrl || null,
-      products: design.products || [],
-      depthMapImage: design.depthMapImage || null
-    });
+  const handleOpenSavedDesign = async (design: any) => {
+    try {
+      let projectData = design;
+      if (design.id) {
+        showToast('Restoring workspace...', 'info');
+        const response = await fetch(`/api/projects/${design.id}`);
+        if (response.ok) {
+          projectData = await response.json();
+        }
+      }
 
-    setDesignData({
-      image: design.image || design.originalImageUrl || null,
-      vastu: design.direction || 'North',
-      ownership: design.ownership || 'own',
-      location: design.location || 'Mumbai, India',
-      lat: design.lat || null,
-      lng: design.lng || null,
-      budget: design.budget || 4500,
-      style: design.style || 'Modern',
-      roomType: design.roomType || 'Bedroom',
-    });
+      // ── Restore apiResult identically to post-generation state ──────────────
+      setApiResult({
+        text: projectData.textAnalysis || projectData.text || "",
+        image: projectData.originalImageUrl || projectData.image || "",
+        redesignedImage: projectData.daylightImageUrl || projectData.redesignedImage || projectData.image || "",
+        nighttimeImage: projectData.nighttimeImageUrl || projectData.nighttimeImage || null,
+        depthMapImage: projectData.labelledImageUrl || projectData.depthMapImage || null,
+        products: projectData.products || [],
+      });
 
-    // Restore interactive labels if they exist in the saved payload
-    if (design.detectedObjects) {
-      setDetectedObjects(design.detectedObjects);
-    } else {
-      setDetectedObjects([]);
+      // ── Restore all form/constraint fields ──────────────────────────────────
+      setDesignData({
+        image: projectData.originalImageUrl || projectData.image || null,
+        vastu: projectData.direction || projectData.vastu || 'North',
+        ownership: projectData.ownership || 'own',
+        location: projectData.location || 'Mumbai, India',
+        lat: projectData.lat || null,
+        lng: projectData.lng || null,
+        budget: projectData.budget || 4500,
+        style: projectData.designStyle || projectData.style || 'Modern',
+        roomType: projectData.roomType || 'Bedroom',
+      });
+
+      // ── Restore interactive object labels ───────────────────────────────────
+      setDetectedObjects(Array.isArray(projectData.detectedObjects) ? projectData.detectedObjects : []);
+
+      setIsProjectSynced(true);
+      showToast(`Loaded: ${projectData.roomType || 'Project'} from ${projectData.date || 'Cloud'}`, 'success');
+      setCurrentRoute('project-workspace');
+      window.scrollTo({ top: 0, behavior: 'smooth' });
+    } catch (err) {
+      console.error(err);
+      showToast('Failed to load project workspace', 'info');
     }
-
-    showToast(`Loaded: ${design.roomType || 'Project'} from ${design.date || 'Cloud'}`, 'success');
-    setCurrentRoute('project-workspace');
   };
 
   return (
@@ -434,6 +460,8 @@ export default function AuraApp() {
           detectedObjects={detectedObjects}
           isDetectingObjects={isDetectingObjects}
           onSaveProject={() => saveProject()}
+          isSynced={isProjectSynced}
+          showToast={showToast}
         />
       )}
 

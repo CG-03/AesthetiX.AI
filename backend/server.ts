@@ -4,6 +4,7 @@ dotenv.config();
 import express from "express";
 import cors from "cors";
 import { v2 as cloudinary } from "cloudinary";
+import * as admin from "firebase-admin";
 
 const OPENROUTER_API_KEY = process.env.OPENROUTER_API_KEY as string;
 const SERPER_API_KEY = process.env.SERPER_API_KEY as string;
@@ -40,6 +41,29 @@ if (!process.env.CLOUDINARY_CLOUD_NAME || !process.env.CLOUDINARY_API_KEY) {
 } else {
   console.log(`[STARTUP] Cloudinary configured for: ${process.env.CLOUDINARY_CLOUD_NAME}`);
 }
+
+// Firebase Admin Initialization
+if (!admin.apps.length) {
+  try {
+    const rawPrivateKey = process.env.FIREBASE_PRIVATE_KEY;
+    // Sanitize the private key: handle \n and remove potential surrounding double quotes
+    const sanitizedPrivateKey = rawPrivateKey
+      ? rawPrivateKey.replace(/\\n/g, '\n').replace(/^"|"$/g, '')
+      : undefined;
+
+    admin.initializeApp({
+      credential: admin.credential.cert({
+        projectId: process.env.FIREBASE_PROJECT_ID,
+        clientEmail: process.env.FIREBASE_CLIENT_EMAIL,
+        privateKey: sanitizedPrivateKey,
+      }),
+    });
+    console.log("[STARTUP] Firebase Admin SDK initialized for Firestore.");
+  } catch (err: any) {
+    console.error("[STARTUP] ERROR initializing Firebase Admin SDK:", err.message);
+  }
+}
+const db = admin.firestore();
 
 // Health check route
 app.get("/", (_req, res) => {
@@ -449,7 +473,7 @@ app.post("/api/remediate", async (req, res) => {
 // ── POST /api/detect-objects ──────────────────────────────────────────────
 
 app.post("/api/detect-objects", async (req, res) => {
-  console.log("\n--- New Object Detection Request Received (Nemotron Precision) ---");
+  console.log("\n--- New Object Detection Request Received (Nemotron Precision via YOLO11x-seg) ---");
   try {
     const { redesignedImage } = req.body;
     if (!redesignedImage) return res.status(200).json([]); // Never break frontend
@@ -471,7 +495,7 @@ app.post("/api/detect-objects", async (req, res) => {
     2. "width" and "height" are the object's relative size (0-100).
     3. Return ONLY the raw JSON array. No markdown code blocks, no preamble.`;
 
-    console.log(`[SAM] Starting Precision Vision Detection via ${TEXT_MODEL}...`);
+    console.log(`[YOLO11x-seg] Starting Precision Vision Detection via ${TEXT_MODEL}...`);
     const visionResult = await openrouterChat(
       TEXT_MODEL,
       [
@@ -487,13 +511,11 @@ app.post("/api/detect-objects", async (req, res) => {
     );
 
     let content = visionResult?.choices?.[0]?.message?.content || "[]";
-    
+
     // Robust extraction: find anything between the first [ and the last ]
     const arrayMatch = content.match(/\[[\s\S]*\]/);
     if (arrayMatch) {
       content = arrayMatch[0];
-    } else {
-      console.warn("[SAM] No JSON array markers [ ] found in response.");
     }
 
     let visionDetected = [];
@@ -502,19 +524,19 @@ app.post("/api/detect-objects", async (req, res) => {
     try {
       visionDetected = JSON.parse(content);
     } catch (parseErr) {
-      console.warn("[SAM] Initial parse failed. Attempting structural recovery...");
+      console.warn("[YOLO11x-seg] Initial parse failed. Attempting structural recovery...");
       try {
         // Find last complete object closing brace
         const lastBrace = content.lastIndexOf("}");
         if (lastBrace !== -1) {
           const repaired = content.substring(0, lastBrace + 1) + "]";
           visionDetected = JSON.parse(repaired);
-          console.log("[SAM] Structural recovery successful.");
+          console.log("[YOLO11x-seg] Structural recovery successful.");
         } else {
           throw new Error("No object braces found");
         }
       } catch (recoveryErr) {
-        console.error("[SAM] Recovery failed. Falling back to keyword extraction.");
+        console.error("[YOLO11x-seg] Recovery failed. Falling back to keyword extraction.");
         // Use HEURISTIC_BOUNDING_BOXES for keyword extraction from broken text
         const keywords = Object.keys(HEURISTIC_BOUNDING_BOXES);
         const uniqueFound = new Set<string>();
@@ -542,7 +564,7 @@ app.post("/api/detect-objects", async (req, res) => {
       boundingBox: item.boundingBox || { x: 50, y: 50, width: 20, height: 20 }
     }));
 
-    console.log(`[SAM] Detection complete. Found ${finalObjects.length} items.`);
+    console.log(`[YOLO11x-seg] Detection complete. Found ${finalObjects.length} items.`);
     res.status(200).json(finalObjects);
 
   } catch (error: any) {
@@ -610,133 +632,190 @@ app.post("/api/search-products", async (req, res) => {
   }
 });
 
-// ── Project Management (Cloudinary) ───────────────────────────────────────
+// ── Helper: Hex Code Extraction ──────────────────────────────────────────
+const extractHexColors = (text: string | null | undefined): string[] => {
+  if (!text) return [];
+  const colorRegex = /#(?:[0-9a-fA-F]{3}){1,2}\b/g;
+  const matches = text.match(colorRegex);
+  return matches ? Array.from(new Set(matches)) : [];
+};
+
+// ── Project Management (Cloudinary & Firestore) ───────────────────────────
 
 /**
- * Save a new project to Cloudinary
- * We store the metadata inside Cloudinary Context
+ * Upload a base64 image to Cloudinary and return its secure URL.
  */
-app.post("/api/projects", async (req, res) => {
-  console.log("\n--- Saving Project to Cloudinary ---");
+async function uploadImageToCloudinary(base64Image: string | null | undefined, folder: string, publicId?: string): Promise<string> {
+  if (!base64Image || !base64Image.startsWith("data:image")) return "";
   try {
-    const { 
-      redesignedImage, 
-      originalImage, 
-      roomType, 
-      style, 
-      location, 
-      budget, 
-      textAnalysis, 
-      detectedObjects 
+    const dataUrl = base64Image;
+    const uploadOptions: any = { folder, tags: ["vastu-project"] };
+    if (publicId) {
+      // Split the path correctly by keeping just folder/id logic standard
+    }
+    const result = await cloudinary.uploader.upload(dataUrl, uploadOptions);
+    return result.secure_url;
+  } catch (err: any) {
+    console.warn(`[Cloudinary] Image upload failed to ${folder}: ${err.message}`);
+    return "";
+  }
+}
+
+app.post("/api/projects/save", async (req, res) => {
+  console.log("\n--- Saving Project to Firestore & Cloudinary ---");
+  try {
+    const {
+      redesignedImage,   // daylight render
+      originalImage,     // uploaded photo
+      nighttimeImage,    // AI nighttime render
+      labelledImage,     // YOLO11x-seg annotated render
+      roomType,
+      style,
+      location,
+      budget,
+      direction,
+      ownership,
+      projectName,
+      textAnalysis,
+      detectedObjects,
+      vastuDetails,
     } = req.body;
 
-    if (!redesignedImage) return res.status(400).json({ error: "Missing image" });
+    if (!redesignedImage) return res.status(400).json({ error: "Missing redesignedImage" });
 
-    // Upload to Cloudinary
-    const uploadRes = await cloudinary.uploader.upload(redesignedImage, {
-      folder: "vastuvision/projects",
-      tags: ["vastu-project"],
-      context: {
-        roomType: roomType || "Room",
-        style: style || "Modern",
-        location: location || "Unknown",
-        budget: String(budget || 0),
-        // textAnalysis can be long, we might need to truncate or use metadata
-        // For now, we store basic info. Full analysis could be stored in a separate field or Cloudinary metadata
-        analysisSummary: textAnalysis ? textAnalysis.substring(0, 1000) : "",
-        originalImage: originalImage ? originalImage.substring(0, 100) : "", // Just a hint
-      },
-      // Store the objects as a JSON string in a custom field or metadata if enabled
-      // For now, we'll use context for simple retrieval
-    });
+    // Generate project ID
+    const projectRef = db.collection('projects').doc();
+    const projectId = projectRef.id;
 
-    console.log(`[Cloudinary] Project saved. Public ID: ${uploadRes.public_id}`);
-    res.status(200).json({ success: true, project: uploadRes });
+    // Extract color palette
+    const extractedColors = extractHexColors(textAnalysis);
+
+    // 1. Upload images in parallel to their respective project folders
+    console.log(`[Cloudinary] Uploading images to project folder: vastuvision/projects/${projectId}...`);
+    const [originalUrl, daylightUrl, nightUrl, labelledUrl] = await Promise.all([
+      uploadImageToCloudinary(originalImage, `vastuvision/projects/${projectId}/original`),
+      uploadImageToCloudinary(redesignedImage, `vastuvision/projects/${projectId}/daylight`),
+      uploadImageToCloudinary(nighttimeImage, `vastuvision/projects/${projectId}/nighttime`),
+      uploadImageToCloudinary(labelledImage, `vastuvision/projects/${projectId}/labelled`),
+    ]);
+
+    const timestamp = admin.firestore.FieldValue.serverTimestamp();
+
+    const projectData = {
+      projectName: projectName || "Untitled Project",
+      roomType: roomType || "Room",
+      designStyle: style || "Modern",
+      budget: Number(budget || 0),
+      ownership: ownership || "own",
+      direction: direction || "North",
+      location: location || "Unknown",
+      textAnalysis: textAnalysis || "",
+      vastuDetails: vastuDetails || "",
+      colorPalette: extractedColors,
+      detectedObjects: Array.isArray(detectedObjects) ? detectedObjects : [],
+      originalImageUrl: originalUrl || "",
+      daylightImageUrl: daylightUrl || "",
+      nighttimeImageUrl: nightUrl || "",
+      labelledImageUrl: labelledUrl || "",
+      createdAt: timestamp,
+    };
+
+    console.log(`[Firestore] Saving project metadata for ID: ${projectId}...`);
+    await projectRef.set(projectData);
+
+    console.log(`[Firestore] Project successfully saved.`);
+    res.status(200).json({ success: true, project: { id: projectId, ...projectData } });
   } catch (error: any) {
-    console.error("[Cloudinary] Save failed:", error);
-    res.status(500).json({ error: "Failed to save project to Cloudinary" });
+    console.error("[Backend] Save failed:", error);
+    res.status(500).json({ error: "Failed to save project" });
   }
 });
 
-/**
- * List all projects from Cloudinary
- */
 app.get("/api/projects", async (req, res) => {
-  console.log("\n--- Fetching Projects from Cloudinary ---");
+  console.log("\n--- Fetching Projects from Firestore ---");
   try {
-    // Search for assets with the 'vastu-project' tag
-    // Note: This requires the search API to be enabled/indexed in Cloudinary
-    const result = await cloudinary.search
-      .expression("tags:vastu-project")
-      .with_field("context")
-      .sort_by("created_at", "desc")
-      .max_results(20)
-      .execute();
+    const snapshot = await db.collection('projects').orderBy('createdAt', 'desc').get();
 
-    const projects = result.resources.map((resource: any) => ({
-      id: resource.public_id,
-      date: new Date(resource.created_at).toLocaleDateString(),
-      image: resource.secure_url, // This is the redesigned image
-      roomType: resource.context?.roomType || "Room",
-      style: resource.context?.style || "Modern",
-      location: resource.context?.location || "Unknown",
-      budget: Number(resource.context?.budget || 0),
-      text: resource.context?.analysisSummary || ""
-    }));
+    const projects = snapshot.docs.map(doc => {
+      const data = doc.data();
+      return {
+        id: doc.id,
+        ...data,
+        date: data.createdAt ? data.createdAt.toDate().toLocaleDateString() : new Date().toLocaleDateString(),
+        // Alias for the frontend templates expecting "image" and "style" etc
+        image: data.daylightImageUrl,
+        style: data.designStyle,
+      };
+    });
 
     res.status(200).json(projects);
   } catch (error: any) {
-    console.error("[Cloudinary] Fetch failed:", error);
+    console.error("[Firestore] Fetch failed:", error);
     res.status(500).json({ error: "Failed to fetch projects" });
   }
 });
 
-/**
- * Get a single project from Cloudinary
- */
 app.get("/api/projects/:id", async (req, res) => {
   const { id } = req.params;
-  console.log(`\n--- Fetching Project Details: ${id} ---`);
+  console.log(`\n--- Fetching Project Details from Firestore: ${id} ---`);
   try {
-    const resource = await cloudinary.api.resource(id, { context: true });
-    
-    const project = {
-      id: resource.public_id,
-      originalImageUrl: resource.context?.originalImage || resource.secure_url,
-      daylightImageUrl: resource.secure_url,
-      nightlightImageUrl: null,
-      textAnalysis: resource.context?.analysisSummary || "",
-      roomType: resource.context?.roomType || "Room",
-      style: resource.context?.style || "Modern",
-      budget: Number(resource.context?.budget || 0),
-      location: resource.context?.location || "Unknown",
-      detectedObjects: resource.context?.detectedObjects ? JSON.parse(resource.context.detectedObjects) : []
-    };
+    const doc = await db.collection('projects').doc(id).get();
+    if (!doc.exists) {
+      return res.status(404).json({ error: "Project not found" });
+    }
 
-    res.status(200).json(project);
+    const data = doc.data();
+    res.status(200).json({ id: doc.id, ...data });
   } catch (error: any) {
-    console.error("[Cloudinary] Get details failed for ID:", id);
-    console.error("Error Message:", error.message);
-    if (error.error) console.error("Cloudinary Error Data:", error.error);
-    
-    res.status(error.http_code || 500).json({ 
-      error: "Failed to fetch project details",
-      details: error.message
-    });
+    console.error("[Firestore] Get details failed for ID:", id, error);
+    res.status(500).json({ error: "Failed to fetch project details" });
   }
 });
 
-/**
- * Delete a project from Cloudinary
- */
+function getPublicIdFromUrl(url: string | null | undefined): string | null {
+  if (!url) return null;
+  try {
+    const parts = url.split('/upload/');
+    if (parts.length < 2) return null;
+    let path = parts[1];
+    path = path.replace(/^v\d+\//, '');
+    path = path.substring(0, path.lastIndexOf('.'));
+    return path;
+  } catch (e) {
+    return null;
+  }
+}
+
 app.delete("/api/projects/:id", async (req, res) => {
   const { id } = req.params;
   console.log(`\n--- Deleting Project: ${id} ---`);
   try {
-    await cloudinary.uploader.destroy(id);
-    res.status(200).json({ success: true });
+    const projectRef = db.collection('projects').doc(id);
+    const doc = await projectRef.get();
+
+    if (doc.exists) {
+      const data = doc.data();
+      const urls = [
+        data?.originalImageUrl,
+        data?.daylightImageUrl,
+        data?.nighttimeImageUrl,
+        data?.labelledImageUrl
+      ];
+
+      const publicIds = urls.map(url => getPublicIdFromUrl(url as string | null | undefined)).filter(Boolean) as string[];
+      if (publicIds.length > 0) {
+        console.log(`[Cloudinary] Deleting assets via derived public IDs:`, publicIds);
+        await Promise.all(publicIds.map(pid => cloudinary.uploader.destroy(pid)));
+      }
+
+      console.log(`[Firestore] Deleting project metadata document`);
+      await projectRef.delete();
+      res.status(200).json({ success: true });
+    } else {
+      res.status(404).json({ error: "Project not found" });
+    }
   } catch (error: any) {
-    console.error("[Cloudinary] Delete failed:", error);
+    console.error("[Backend] Delete failed:", error);
     res.status(500).json({ error: "Failed to delete project" });
   }
 });

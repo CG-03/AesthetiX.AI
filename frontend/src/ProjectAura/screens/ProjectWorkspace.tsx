@@ -25,8 +25,10 @@ interface ProjectWorkspaceProps {
   onOpenCart: () => void;
   detectedObjects?: any[];
   isDetectingObjects?: boolean;
-  onSaveProject: (currentImage?: string | null) => void;
+  onSaveProject: () => Promise<void>;
   geoCity?: string;
+  isSynced: boolean;
+  showToast: (message: string, type?: 'success' | 'info') => void;
 }
 
 const products = [
@@ -36,7 +38,20 @@ const products = [
   { id: 4, name: 'Earthen Triptych Art', brand: 'Vastu AI Fine Arts', price: 320, image: 'https://images.unsplash.com/photo-1579783902614-a3fb3927b6a5?w=400&h=300&fit=crop' },
 ];
 
-export default function ProjectWorkspace({ onBack, apiResult, budget = 4500, cartItems, onAddToCart, onOpenCart, detectedObjects = [], isDetectingObjects = false, onSaveProject, geoCity }: ProjectWorkspaceProps) {
+export default function ProjectWorkspace({ 
+  onBack, 
+  apiResult, 
+  budget = 4500, 
+  cartItems, 
+  onAddToCart, 
+  onOpenCart, 
+  detectedObjects = [], 
+  isDetectingObjects = false, 
+  onSaveProject, 
+  geoCity,
+  isSynced,
+  showToast
+}: ProjectWorkspaceProps) {
   const [renderMode, setRenderMode] = useState<'original' | 'daylight' | 'nighttime' | 'labelled'>('daylight');
   const [costMode, setCostMode] = useState<'retail' | 'custom'>('retail');
   const [selectedProduct, setSelectedProduct] = useState<any>(null);
@@ -171,8 +186,11 @@ export default function ProjectWorkspace({ onBack, apiResult, budget = 4500, car
   };
 
   const getRenderSrc = () => {
+    // Each tab MUST have its own dedicated source from apiResult to prevent "same image" bugs.
     if (renderMode === 'original') return formatImageSrc(apiResult?.image);
-    if (renderMode === 'nighttime' && apiResult?.nighttimeImage) return formatImageSrc(apiResult.nighttimeImage);
+    if (renderMode === 'daylight') return formatImageSrc(apiResult?.redesignedImage || activeImage);
+    if (renderMode === 'nighttime') return formatImageSrc(apiResult?.nighttimeImage || activeImage);
+    if (renderMode === 'labelled') return formatImageSrc(apiResult?.depthMapImage || apiResult?.redesignedImage || activeImage);
     return formatImageSrc(activeImage);
   };
 
@@ -233,20 +251,32 @@ export default function ProjectWorkspace({ onBack, apiResult, budget = 4500, car
           <button onClick={handleShare} className="flex items-center gap-2 px-4 py-2 rounded-xl border border-gray-200 dark:border-[#3A3632] text-sm font-semibold text-gray-500 dark:text-[#A89F94] hover:bg-gray-50 dark:hover:bg-[#2E2B28] transition-colors print:hidden">
             <Share2 size={16} /> Share
           </button>
-          <button 
-            onClick={async () => {
-              setIsSaving(true);
-              await onSaveProject(activeImage);
-              setIsSaving(false);
-              setHasSaved(true);
-              setTimeout(() => setHasSaved(false), 3000);
-            }}
-            disabled={isSaving}
-            className={`flex items-center gap-2 px-4 py-2 rounded-xl font-bold text-sm transition-all shadow-sm print:hidden ${hasSaved ? 'bg-green-500 text-white' : 'bg-white dark:bg-[#1A1816] text-[#B3541E] border border-gray-100 dark:border-[#3A3632] hover:bg-gray-50 dark:hover:bg-[#2E2B28]'}`}
-          >
-            {isSaving ? <Loader2 size={16} className="animate-spin" /> : hasSaved ? <Check size={16} /> : <Save size={16} />}
-            {hasSaved ? 'Saved to Cloud' : 'Save Project'}
-          </button>
+          {(() => {
+            const canSave = !!(apiResult?.image && apiResult?.redesignedImage && apiResult?.nighttimeImage);
+            return (
+              <button 
+                onClick={async () => {
+                  if (isSynced) {
+                    showToast('Project already saved!', 'info');
+                    return;
+                  }
+                  setIsSaving(true);
+                  await onSaveProject();
+                  setIsSaving(false);
+                  setHasSaved(true);
+                  setTimeout(() => setHasSaved(false), 3000);
+                }}
+                disabled={isSaving || !canSave}
+                title={!canSave ? 'Waiting for all renders to complete...' : isSynced ? 'Project already saved' : 'Save Design'}
+                className={`flex items-center gap-2 px-4 py-2 rounded-xl font-bold text-sm transition-all shadow-sm print:hidden disabled:opacity-40 disabled:cursor-not-allowed ${
+                  isSynced || hasSaved ? 'bg-green-500 text-white' : 'bg-white dark:bg-[#1A1816] text-[#B3541E] border border-gray-100 dark:border-[#3A3632] hover:bg-gray-50 dark:hover:bg-[#2E2B28]'
+                }`}
+              >
+                {isSaving ? <Loader2 size={16} className="animate-spin" /> : (isSynced || hasSaved) ? <Check size={16} /> : <Save size={16} />}
+                {isSynced ? 'Synced' : hasSaved ? 'Saved' : 'Save Design'}
+              </button>
+            );
+          })()}
           <button onClick={handlePrint} className="flex items-center gap-2 px-4 py-2 rounded-xl bg-[#B3541E] text-white text-sm font-semibold hover:bg-[#8E4318] transition-colors shadow-lg shadow-[#B3541E]/20 print:hidden">
             <Download size={16} /> Export PDF
           </button>
@@ -316,16 +346,16 @@ export default function ProjectWorkspace({ onBack, apiResult, budget = 4500, car
                 <div className="absolute inset-0 z-10 pointer-events-none">
                   {detectedObjects.map((obj: any, index: number) => {
                     const isSelected = selectedObjectId === obj.id;
-                    
+
                     // Improved positioning: Staggered offsets to prevent label overlap
                     // We offset the label vertically based on its index and horizontally based on quadrant
-                    const staggerX = (index % 2 === 0 ? 0 : 2); 
-                    const staggerY = (index % 3) * 6; 
-                    
+                    const staggerX = (index % 2 === 0 ? 0 : 2);
+                    const staggerY = (index % 3) * 6;
+
                     return (
                       <React.Fragment key={obj.id}>
                         {/* 1. Dotted Segmented Boundary (The Outline) */}
-                        <div 
+                        <div
                           className={`absolute border-2 border-dashed transition-all duration-700 ease-in-out rounded-3xl
                             ${isSelected ? 'border-[#B3541E] bg-[#B3541E]/5 scale-105' : 'border-white/30 bg-transparent opacity-60'}`}
                           style={{
