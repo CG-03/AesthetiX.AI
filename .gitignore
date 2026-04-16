@@ -1,8 +1,11 @@
 # Node and build artifacts
+backend\node_modules
 node_modules/
 dist/
 build/
 .env
+backend\.env
+
 
 # Python Virtual Environment
 **/venv/
