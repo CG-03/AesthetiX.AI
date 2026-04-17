@@ -1,14 +1,16 @@
-import dotenv from "dotenv";
+import * as dotenv from "dotenv";
 dotenv.config();
 
 import express from "express";
 import cors from "cors";
 import { v2 as cloudinary } from "cloudinary";
 import mongoose from "mongoose";
+import sharp from "sharp";
 import Project from "./models/Project.js"; // tsx resolves this at runtime
 
 const OPENROUTER_API_KEY = process.env.OPENROUTER_API_KEY as string;
 const SERPER_API_KEY = process.env.SERPER_API_KEY as string;
+const HF_API_KEY = process.env.HUGGINGFACE_API_KEY as string;
 const OPENROUTER_BASE_URL = "https://openrouter.ai/api/v1";
 
 const app = express();
@@ -19,9 +21,9 @@ app.use(express.json({ limit: "20mb" }));
 
 // ── Cloudinary Configuration ──────────────────────────────────────────────
 cloudinary.config({
-  cloud_name: process.env.CLOUDINARY_CLOUD_NAME,
-  api_key: process.env.CLOUDINARY_API_KEY,
-  api_secret: process.env.CLOUDINARY_API_SECRET,
+  cloud_name: process.env.CLOUDINARY_CLOUD_NAME || "",
+  api_key: process.env.CLOUDINARY_API_KEY || "",
+  api_secret: process.env.CLOUDINARY_API_SECRET || "",
 });
 
 // ── Startup checks ────────────────────────────────────────────────────────
@@ -35,6 +37,11 @@ if (!SERPER_API_KEY) {
 } else {
   console.log(`[STARTUP] Serper API key loaded: ${SERPER_API_KEY.substring(0, 12)}...`);
 }
+if (!HF_API_KEY || HF_API_KEY === 'your_hf_token_here') {
+  console.warn("[STARTUP] WARNING: HUGGINGFACE_API_KEY not set. SAM2 segmentation will be skipped (Nemotron bounding box fallback active).");
+} else {
+  console.log(`[STARTUP] HuggingFace API key loaded: ${HF_API_KEY.substring(0, 8)}... (SAM2 segmentation enabled)`);
+}
 
 // Cloudinary check
 if (!process.env.CLOUDINARY_CLOUD_NAME || !process.env.CLOUDINARY_API_KEY) {
@@ -44,7 +51,7 @@ if (!process.env.CLOUDINARY_CLOUD_NAME || !process.env.CLOUDINARY_API_KEY) {
 }
 
 // MongoDB Initialization
-const MONGODB_URI = process.env.MONGODB_URI || "mongodb://127.0.0.1:27017/vastuvision";
+const MONGODB_URI: string = process.env.MONGODB_URI || "mongodb://127.0.0.1:27017/vastuvision";
 console.log(`[STARTUP] Attempting to connect to MongoDB...`);
 
 mongoose.connect(MONGODB_URI, {
@@ -149,6 +156,144 @@ async function openrouterChat(
   const data = await response.json();
   console.log(`[OpenRouter] Success for model: ${model}`);
   return data;
+}
+
+// ── SAM2.1 Segmentation via Hugging Face Inference API ───────────────────────
+/**
+ * Calls facebook/sam2.1-hiera-large on HF Inference API in automatic mask-generation mode.
+ * Matches each SAM2 mask to a Nemotron-detected object using center-point containment.
+ * Converts binary PNG masks to normalized polygon boundary points (0-100 scale).
+ * Gracefully returns empty [] masks on any failure — never breaks the pipeline.
+ */
+async function callSAM2Segmentation(
+  base64Image: string,
+  objects: Array<{ name: string; boundingBox: { x: number; y: number; width: number; height: number } }>
+): Promise<Array<Array<{ x: number; y: number }>>> {
+  const emptyResult = objects.map(() => []);
+
+  if (!HF_API_KEY || HF_API_KEY === 'your_hf_token_here' || objects.length === 0) {
+    console.warn("[SAM2] Skipping: HF API key not configured or no objects to segment.");
+    return emptyResult;
+  }
+
+  try {
+    // Strip the data URL prefix if present
+    const rawBase64 = base64Image.startsWith("data:") ? base64Image.split(",")[1] : base64Image;
+    const imageBuffer = Buffer.from(rawBase64, "base64");
+
+    console.log(`[SAM2] Calling facebook/sam2.1-hiera-large for ${objects.length} object(s)...`);
+
+    const response = await fetch(
+      "https://api-inference.huggingface.co/models/facebook/sam2.1-hiera-large",
+      {
+        method: "POST",
+        headers: {
+          "Authorization": `Bearer ${HF_API_KEY}`,
+          "Content-Type": "application/octet-stream",
+          "X-Use-Cache": "false",
+        },
+        body: imageBuffer,
+        signal: AbortSignal.timeout(45000),
+      }
+    );
+
+    if (!response.ok) {
+      const errText = await response.text();
+      console.warn(`[SAM2] HF API returned HTTP ${response.status}. Falling back to bounding boxes. Details: ${errText.substring(0, 300)}`);
+      return emptyResult;
+    }
+
+    const maskResults: Array<{ score: number; label: string; mask: string }> = await response.json();
+
+    if (!Array.isArray(maskResults) || maskResults.length === 0) {
+      console.warn("[SAM2] HF API returned no masks. Using bounding box fallback.");
+      return emptyResult;
+    }
+
+    console.log(`[SAM2] Received ${maskResults.length} raw masks. Matching to ${objects.length} object(s)...`);
+
+    // Get mask dimensions once from the first mask
+    const firstMaskBuf = Buffer.from(maskResults[0].mask, "base64");
+    const { width: maskW = 1024, height: maskH = 768 } = await sharp(firstMaskBuf).metadata();
+
+    const results: Array<Array<{ x: number; y: number }>> = [];
+
+    for (const obj of objects) {
+      // Convert object bounding box center to pixel coordinates
+      const centerX = Math.round(obj.boundingBox.x / 100 * maskW);
+      const centerY = Math.round(obj.boundingBox.y / 100 * maskH);
+
+      let bestMask: string | null = null;
+      let bestScore = -1;
+
+      // Find the mask whose area contains the object's center point
+      for (const maskResult of maskResults) {
+        try {
+          const maskBuf = Buffer.from(maskResult.mask, "base64");
+          const { data, info } = await sharp(maskBuf).greyscale().raw().toBuffer({ resolveWithObject: true });
+          const pixelIdx = Math.min(centerY * info.width + centerX, data.length - 1);
+          if (data[pixelIdx] > 128 && maskResult.score > bestScore) {
+            bestScore = maskResult.score;
+            bestMask = maskResult.mask;
+          }
+        } catch { continue; }
+      }
+
+      // Fallback: use the highest-scored mask if no mask covered the center
+      if (!bestMask) {
+        const sorted = [...maskResults].sort((a, b) => b.score - a.score);
+        bestMask = sorted[0]?.mask || null;
+        if (bestMask) console.warn(`[SAM2] No mask covered center for "${obj.name}", using highest-scored mask.`);
+      }
+
+      if (!bestMask) {
+        results.push([]);
+        continue;
+      }
+
+      // Convert binary mask PNG → boundary polygon points
+      try {
+        const maskBuf = Buffer.from(bestMask, "base64");
+        const { data, info } = await sharp(maskBuf).greyscale().raw().toBuffer({ resolveWithObject: true });
+
+        const topBoundary: Array<{ x: number; y: number }> = [];
+        const bottomBoundary: Array<{ x: number; y: number }> = [];
+        const step = Math.max(1, Math.floor(info.height / 40)); // ~40 horizontal scanlines
+
+        for (let y = 0; y < info.height; y += step) {
+          let leftX = -1, rightX = -1;
+          for (let x = 0; x < info.width; x++) {
+            if (data[y * info.width + x] > 128) {
+              if (leftX === -1) leftX = x;
+              rightX = x;
+            }
+          }
+          if (leftX !== -1) {
+            topBoundary.push({ x: parseFloat((leftX / info.width * 100).toFixed(1)), y: parseFloat((y / info.height * 100).toFixed(1)) });
+            if (rightX !== leftX) {
+              bottomBoundary.push({ x: parseFloat((rightX / info.width * 100).toFixed(1)), y: parseFloat((y / info.height * 100).toFixed(1)) });
+            }
+          }
+        }
+
+        // Closed polygon: left-edge top→bottom, right-edge bottom→top
+        const polygon = [...topBoundary, ...bottomBoundary.reverse()];
+        results.push(polygon.length > 0 ? polygon : []);
+
+        console.log(`[SAM2] "${obj.name}": ${polygon.length} polygon points (score: ${bestScore.toFixed(2)})`);
+      } catch (parseErr: any) {
+        console.warn(`[SAM2] Mask parse failed for "${obj.name}": ${parseErr.message}`);
+        results.push([]);
+      }
+    }
+
+    console.log(`[SAM2] Complete. ${results.filter(r => r.length > 0).length}/${objects.length} objects have segmentation masks.`);
+    return results;
+
+  } catch (err: any) {
+    console.warn(`[SAM2] Graceful fallback (${err.message}). Using bounding boxes.`);
+    return objects.map(() => []);
+  }
 }
 
 // ── POST /api/analyze ──────────────────────────────────────────────────────
@@ -472,16 +617,17 @@ app.post("/api/remediate", async (req, res) => {
   }
 });
 
-// ── POST /api/detect-objects ──────────────────────────────────────────────
+// ── POST /api/detect-objects (Two-Stage: Nemotron → SAM2.1) ──────────────────
 
 app.post("/api/detect-objects", async (req, res) => {
-  console.log("\n--- New Object Detection Request Received (SAM2 Placeholder) ---");
+  console.log("\n--- Object Detection: Stage 1 (Nemotron) + Stage 2 (SAM2.1) ---");
   try {
     const { redesignedImage } = req.body;
     if (!redesignedImage) return res.status(200).json([]); // Never break frontend
 
     const imageUrl = redesignedImage.startsWith("data:") ? redesignedImage : `data:image/jpeg;base64,${redesignedImage}`;
 
+    // ── Stage 1: Nemotron Vision — Identifies objects + bounding boxes ────────
     const visionPrompt = `Look at this interior design image. Provide a JSON array of visible furniture and decor items. 
     Return a maximum of 6 most prominent furniture items only. Do not list small accessories or decorative items.
     
@@ -497,12 +643,7 @@ app.post("/api/detect-objects", async (req, res) => {
     2. "width" and "height" are the object's relative size (0-100).
     3. Return ONLY the raw JSON array. No markdown code blocks, no preamble.`;
 
-    /* 
-     * FUTURE INTEGRATION: SAM 2 (Segment Anything Model 2)
-     * Port 8000 or specialized microservice will be used here.
-     * Currently falling back to Nemotron Vision for robust item extraction.
-     */
-    console.log(`[SAM2-PLACEHOLDER] Starting Precision Vision Detection via ${TEXT_MODEL}...`);
+    console.log(`[Stage-1/Nemotron] Identifying objects via ${TEXT_MODEL}...`);
     const visionResult = await openrouterChat(
       TEXT_MODEL,
       [
@@ -514,70 +655,64 @@ app.post("/api/detect-objects", async (req, res) => {
           ],
         },
       ],
-      { max_tokens: 2000 } // Increase limit to prevent truncation
+      { max_tokens: 2000 }
     );
 
     let content = visionResult?.choices?.[0]?.message?.content || "[]";
 
-    // Robust extraction: find anything between the first [ and the last ]
+    // Robust JSON extraction
     const arrayMatch = content.match(/\[[\s\S]*\]/);
-    if (arrayMatch) {
-      content = arrayMatch[0];
-    }
+    if (arrayMatch) content = arrayMatch[0];
 
-    let visionDetected = [];
+    let visionDetected: any[] = [];
 
-    // Recovery-First JSON Parser
     try {
       visionDetected = JSON.parse(content);
-    } catch (parseErr) {
-      console.warn("[SAM2-PLACEHOLDER] Initial parse failed. Attempting structural recovery...");
+    } catch {
+      console.warn("[Stage-1/Nemotron] Initial JSON parse failed. Attempting recovery...");
       try {
-        // Find last complete object closing brace
         const lastBrace = content.lastIndexOf("}");
         if (lastBrace !== -1) {
-          const repaired = content.substring(0, lastBrace + 1) + "]";
-          visionDetected = JSON.parse(repaired);
-          console.log("[SAM2-PLACEHOLDER] Structural recovery successful.");
-        } else {
-          throw new Error("No object braces found");
-        }
-      } catch (recoveryErr) {
-        console.error("[SAM2-PLACEHOLDER] Recovery failed. Falling back to keyword extraction.");
-        // Use HEURISTIC_BOUNDING_BOXES for keyword extraction from broken text
-        const keywords = Object.keys(HEURISTIC_BOUNDING_BOXES);
+          visionDetected = JSON.parse(content.substring(0, lastBrace + 1) + "]");
+          console.log("[Stage-1/Nemotron] Structural recovery successful.");
+        } else throw new Error("No closing brace found");
+      } catch {
+        console.error("[Stage-1/Nemotron] Recovery failed. Using heuristic keyword extraction.");
         const uniqueFound = new Set<string>();
-
-        keywords.forEach(kw => {
-          if (content.toLowerCase().includes(kw)) {
-            uniqueFound.add(kw);
-          }
+        Object.keys(HEURISTIC_BOUNDING_BOXES).forEach(kw => {
+          if (content.toLowerCase().includes(kw)) uniqueFound.add(kw);
         });
-
         visionDetected = Array.from(uniqueFound).slice(0, 6).map(kw => ({
           name: kw.charAt(0).toUpperCase() + kw.slice(1),
-          boundingBox: HEURISTIC_BOUNDING_BOXES[kw]
+          boundingBox: HEURISTIC_BOUNDING_BOXES[kw],
         }));
       }
     }
 
-    const items = Array.isArray(visionDetected) ? visionDetected : ((visionDetected as any).items || []);
+    const items: any[] = Array.isArray(visionDetected) ? visionDetected : ((visionDetected as any).items || []);
+    console.log(`[Stage-1/Nemotron] Identified ${items.length} object(s).`);
+
+    // ── Stage 2: SAM2.1 — Precise segmentation masks ─────────────────────────
+    const segmentationMasks = await callSAM2Segmentation(imageUrl, items);
+
+    // ── Merge results ─────────────────────────────────────────────────────────
     const finalObjects = items.map((item: any, idx: number) => ({
       id: idx + 1,
       label: item.name || "Object",
       color: item.color || "matching",
       style: item.style || "modern",
       material: item.material || "standard",
-      boundingBox: item.boundingBox || { x: 50, y: 50, width: 20, height: 20 }
+      boundingBox: item.boundingBox || { x: 50, y: 50, width: 20, height: 20 },
+      segmentationMask: segmentationMasks[idx] || [], // SAM2 polygon ([] = use bounding box in frontend)
     }));
 
-    console.log(`[SAM2-PLACEHOLDER] Detection complete. Found ${finalObjects.length} items.`);
+    console.log(`[Detection Complete] ${finalObjects.length} objects, ${finalObjects.filter(o => o.segmentationMask.length > 0).length} with SAM2 masks.`);
     res.status(200).json(finalObjects);
 
   } catch (error: any) {
     console.error("\n--- OBJECT DETECTION ERROR (FORCED SUCCESS) ---");
     console.error(error);
-    res.status(200).json([]); // Always return empty array [] to prevent frontend 500 crashes
+    res.status(200).json([]); // Always return [] to prevent frontend 500 crashes
   }
 });
 
