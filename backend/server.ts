@@ -4,7 +4,8 @@ dotenv.config();
 import express from "express";
 import cors from "cors";
 import { v2 as cloudinary } from "cloudinary";
-import * as admin from "firebase-admin";
+import mongoose from "mongoose";
+import Project from "./models/Project.js"; // tsx resolves this at runtime
 
 const OPENROUTER_API_KEY = process.env.OPENROUTER_API_KEY as string;
 const SERPER_API_KEY = process.env.SERPER_API_KEY as string;
@@ -42,28 +43,29 @@ if (!process.env.CLOUDINARY_CLOUD_NAME || !process.env.CLOUDINARY_API_KEY) {
   console.log(`[STARTUP] Cloudinary configured for: ${process.env.CLOUDINARY_CLOUD_NAME}`);
 }
 
-// Firebase Admin Initialization
-if (!admin.apps.length) {
-  try {
-    const rawPrivateKey = process.env.FIREBASE_PRIVATE_KEY;
-    // Sanitize the private key: handle \n and remove potential surrounding double quotes
-    const sanitizedPrivateKey = rawPrivateKey
-      ? rawPrivateKey.replace(/\\n/g, '\n').replace(/^"|"$/g, '')
-      : undefined;
+// MongoDB Initialization
+const MONGODB_URI = process.env.MONGODB_URI || "mongodb://127.0.0.1:27017/vastuvision";
+console.log(`[STARTUP] Attempting to connect to MongoDB...`);
 
-    admin.initializeApp({
-      credential: admin.credential.cert({
-        projectId: process.env.FIREBASE_PROJECT_ID,
-        clientEmail: process.env.FIREBASE_CLIENT_EMAIL,
-        privateKey: sanitizedPrivateKey,
-      }),
-    });
-    console.log("[STARTUP] Firebase Admin SDK initialized for Firestore.");
-  } catch (err: any) {
-    console.error("[STARTUP] ERROR initializing Firebase Admin SDK:", err.message);
-  }
-}
-const db = admin.firestore();
+mongoose.connect(MONGODB_URI, {
+  serverSelectionTimeoutMS: 15000, // Timeout after 15s instead of hanging forever
+  connectTimeoutMS: 15000,
+})
+  .then(() => console.log("[STARTUP] Successfully connected to MongoDB."))
+  .catch((err) => {
+    console.error("[STARTUP] CRITICAL ERROR connecting to MongoDB:");
+    console.error("Message:", err.message);
+    console.error("Reason:", err.reason || "Unknown");
+  });
+
+// Monitor connection state
+mongoose.connection.on('error', err => {
+  console.error('[MongoDB] Runtime error:', err);
+});
+
+mongoose.connection.on('disconnected', () => {
+  console.warn('[MongoDB] Disconnected from server.');
+});
 
 // Health check route
 app.get("/", (_req, res) => {
@@ -473,7 +475,7 @@ app.post("/api/remediate", async (req, res) => {
 // ── POST /api/detect-objects ──────────────────────────────────────────────
 
 app.post("/api/detect-objects", async (req, res) => {
-  console.log("\n--- New Object Detection Request Received (Nemotron Precision via YOLO11x-seg) ---");
+  console.log("\n--- New Object Detection Request Received (SAM2 Placeholder) ---");
   try {
     const { redesignedImage } = req.body;
     if (!redesignedImage) return res.status(200).json([]); // Never break frontend
@@ -495,7 +497,12 @@ app.post("/api/detect-objects", async (req, res) => {
     2. "width" and "height" are the object's relative size (0-100).
     3. Return ONLY the raw JSON array. No markdown code blocks, no preamble.`;
 
-    console.log(`[YOLO11x-seg] Starting Precision Vision Detection via ${TEXT_MODEL}...`);
+    /* 
+     * FUTURE INTEGRATION: SAM 2 (Segment Anything Model 2)
+     * Port 8000 or specialized microservice will be used here.
+     * Currently falling back to Nemotron Vision for robust item extraction.
+     */
+    console.log(`[SAM2-PLACEHOLDER] Starting Precision Vision Detection via ${TEXT_MODEL}...`);
     const visionResult = await openrouterChat(
       TEXT_MODEL,
       [
@@ -524,19 +531,19 @@ app.post("/api/detect-objects", async (req, res) => {
     try {
       visionDetected = JSON.parse(content);
     } catch (parseErr) {
-      console.warn("[YOLO11x-seg] Initial parse failed. Attempting structural recovery...");
+      console.warn("[SAM2-PLACEHOLDER] Initial parse failed. Attempting structural recovery...");
       try {
         // Find last complete object closing brace
         const lastBrace = content.lastIndexOf("}");
         if (lastBrace !== -1) {
           const repaired = content.substring(0, lastBrace + 1) + "]";
           visionDetected = JSON.parse(repaired);
-          console.log("[YOLO11x-seg] Structural recovery successful.");
+          console.log("[SAM2-PLACEHOLDER] Structural recovery successful.");
         } else {
           throw new Error("No object braces found");
         }
       } catch (recoveryErr) {
-        console.error("[YOLO11x-seg] Recovery failed. Falling back to keyword extraction.");
+        console.error("[SAM2-PLACEHOLDER] Recovery failed. Falling back to keyword extraction.");
         // Use HEURISTIC_BOUNDING_BOXES for keyword extraction from broken text
         const keywords = Object.keys(HEURISTIC_BOUNDING_BOXES);
         const uniqueFound = new Set<string>();
@@ -554,7 +561,7 @@ app.post("/api/detect-objects", async (req, res) => {
       }
     }
 
-    const items = Array.isArray(visionDetected) ? visionDetected : (visionDetected.items || []);
+    const items = Array.isArray(visionDetected) ? visionDetected : ((visionDetected as any).items || []);
     const finalObjects = items.map((item: any, idx: number) => ({
       id: idx + 1,
       label: item.name || "Object",
@@ -564,7 +571,7 @@ app.post("/api/detect-objects", async (req, res) => {
       boundingBox: item.boundingBox || { x: 50, y: 50, width: 20, height: 20 }
     }));
 
-    console.log(`[YOLO11x-seg] Detection complete. Found ${finalObjects.length} items.`);
+    console.log(`[SAM2-PLACEHOLDER] Detection complete. Found ${finalObjects.length} items.`);
     res.status(200).json(finalObjects);
 
   } catch (error: any) {
@@ -640,29 +647,28 @@ const extractHexColors = (text: string | null | undefined): string[] => {
   return matches ? Array.from(new Set(matches)) : [];
 };
 
-// ── Project Management (Cloudinary & Firestore) ───────────────────────────
+// ── Project Management (Cloudinary & MongoDB) ────────────────────────────
 
 /**
- * Upload a base64 image to Cloudinary and return its secure URL.
+ * Upload a base64 image to Cloudinary with a deterministic public_id and return its secure URL.
  */
-async function uploadImageToCloudinary(base64Image: string | null | undefined, folder: string, publicId?: string): Promise<string> {
+async function uploadImageToCloudinary(base64Image: string | null | undefined, publicId: string): Promise<string> {
   if (!base64Image || !base64Image.startsWith("data:image")) return "";
   try {
-    const dataUrl = base64Image;
-    const uploadOptions: any = { folder, tags: ["vastu-project"] };
-    if (publicId) {
-      // Split the path correctly by keeping just folder/id logic standard
-    }
-    const result = await cloudinary.uploader.upload(dataUrl, uploadOptions);
+    const result = await cloudinary.uploader.upload(base64Image, {
+      public_id: publicId,
+      tags: ["vastu-project"],
+      overwrite: true,
+    });
     return result.secure_url;
   } catch (err: any) {
-    console.warn(`[Cloudinary] Image upload failed to ${folder}: ${err.message}`);
+    console.warn(`[Cloudinary] Image upload failed for ${publicId}: ${err.message}`);
     return "";
   }
 }
 
 app.post("/api/projects/save", async (req, res) => {
-  console.log("\n--- Saving Project to Firestore & Cloudinary ---");
+  console.log("\n--- Saving Project to MongoDB & Cloudinary ---");
   try {
     const {
       redesignedImage,   // daylight render
@@ -683,48 +689,46 @@ app.post("/api/projects/save", async (req, res) => {
 
     if (!redesignedImage) return res.status(400).json({ error: "Missing redesignedImage" });
 
-    // Generate project ID
-    const projectRef = db.collection('projects').doc();
-    const projectId = projectRef.id;
+    // Generate a temporary ID for Cloudinary path, will be replaced with Mongo's _id after save
+    const tempId = new mongoose.Types.ObjectId().toHexString();
 
     // Extract color palette
     const extractedColors = extractHexColors(textAnalysis);
 
-    // 1. Upload images in parallel to their respective project folders
-    console.log(`[Cloudinary] Uploading images to project folder: vastuvision/projects/${projectId}...`);
+    // 1. Upload all 4 images to Cloudinary with unique public_ids
+    console.log(`[Cloudinary] Uploading images for project ${tempId}...`);
     const [originalUrl, daylightUrl, nightUrl, labelledUrl] = await Promise.all([
-      uploadImageToCloudinary(originalImage, `vastuvision/projects/${projectId}/original`),
-      uploadImageToCloudinary(redesignedImage, `vastuvision/projects/${projectId}/daylight`),
-      uploadImageToCloudinary(nighttimeImage, `vastuvision/projects/${projectId}/nighttime`),
-      uploadImageToCloudinary(labelledImage, `vastuvision/projects/${projectId}/labelled`),
+      uploadImageToCloudinary(originalImage,   `vastuvision/${tempId}/original`),
+      uploadImageToCloudinary(redesignedImage,  `vastuvision/${tempId}/daylight`),
+      uploadImageToCloudinary(nighttimeImage,   `vastuvision/${tempId}/nighttime`),
+      uploadImageToCloudinary(labelledImage,    `vastuvision/${tempId}/labelled`),
     ]);
+    console.log(`[Cloudinary] originalImageUrl:   ${originalUrl}`);
+    console.log(`[Cloudinary] daylightImageUrl:   ${daylightUrl}`);
+    console.log(`[Cloudinary] nighttimeImageUrl:  ${nightUrl}`);
+    console.log(`[Cloudinary] labelledImageUrl:   ${labelledUrl}`);
 
-    const timestamp = admin.firestore.FieldValue.serverTimestamp();
-
-    const projectData = {
-      projectName: projectName || "Untitled Project",
-      roomType: roomType || "Room",
-      designStyle: style || "Modern",
-      budget: Number(budget || 0),
-      ownership: ownership || "own",
-      direction: direction || "North",
-      location: location || "Unknown",
-      textAnalysis: textAnalysis || "",
-      vastuDetails: vastuDetails || "",
-      colorPalette: extractedColors,
+    // 2. Persist metadata in MongoDB
+    const project = await Project.create({
+      projectName:     projectName || "Untitled Project",
+      roomType:        roomType    || "Room",
+      designStyle:     style       || "Modern",
+      budget:          Number(budget || 0),
+      ownership:       ownership   || "own",
+      direction:       direction   || "North",
+      location:        location    || "Unknown",
+      textAnalysis:    textAnalysis || "",
+      vastuDetails:    vastuDetails || "",
+      colorPalette:    extractedColors,
       detectedObjects: Array.isArray(detectedObjects) ? detectedObjects : [],
-      originalImageUrl: originalUrl || "",
-      daylightImageUrl: daylightUrl || "",
-      nighttimeImageUrl: nightUrl || "",
-      labelledImageUrl: labelledUrl || "",
-      createdAt: timestamp,
-    };
+      originalImageUrl:  originalUrl  || "",
+      daylightImageUrl:  daylightUrl  || "",
+      nighttimeImageUrl: nightUrl     || "",
+      labelledImageUrl:  labelledUrl  || "",
+    });
 
-    console.log(`[Firestore] Saving project metadata for ID: ${projectId}...`);
-    await projectRef.set(projectData);
-
-    console.log(`[Firestore] Project successfully saved.`);
-    res.status(200).json({ success: true, project: { id: projectId, ...projectData } });
+    console.log(`[MongoDB] Project saved with ID: ${project._id}`);
+    res.status(200).json({ success: true, project: project.toJSON() });
   } catch (error: any) {
     console.error("[Backend] Save failed:", error);
     res.status(500).json({ error: "Failed to save project" });
@@ -732,42 +736,38 @@ app.post("/api/projects/save", async (req, res) => {
 });
 
 app.get("/api/projects", async (req, res) => {
-  console.log("\n--- Fetching Projects from Firestore ---");
+  console.log("\n--- Fetching Projects from MongoDB ---");
   try {
-    const snapshot = await db.collection('projects').orderBy('createdAt', 'desc').get();
-
-    const projects = snapshot.docs.map(doc => {
-      const data = doc.data();
-      return {
-        id: doc.id,
-        ...data,
-        date: data.createdAt ? data.createdAt.toDate().toLocaleDateString() : new Date().toLocaleDateString(),
-        // Alias for the frontend templates expecting "image" and "style" etc
-        image: data.daylightImageUrl,
-        style: data.designStyle,
-      };
-    });
-
+    const docs = await Project.find().sort({ createdAt: -1 }).lean();
+    const projects = docs.map((doc: any) => ({
+      ...doc,
+      id: doc._id.toString(),
+      date: doc.createdAt ? new Date(doc.createdAt).toLocaleDateString() : new Date().toLocaleDateString(),
+      // Aliases expected by frontend card templates
+      image: doc.daylightImageUrl,
+      style: doc.designStyle,
+    }));
     res.status(200).json(projects);
   } catch (error: any) {
-    console.error("[Firestore] Fetch failed:", error);
-    res.status(500).json({ error: "Failed to fetch projects" });
+    console.error("[MongoDB] Fetch failed:", error);
+    res.status(500).json({ 
+      error: "Failed to fetch projects", 
+      details: error.message,
+      code: error.code,
+      readyState: mongoose.connection.readyState // 0 = disconnected, 1 = connected, 2 = connecting, 3 = disconnecting
+    });
   }
 });
 
 app.get("/api/projects/:id", async (req, res) => {
   const { id } = req.params;
-  console.log(`\n--- Fetching Project Details from Firestore: ${id} ---`);
+  console.log(`\n--- Fetching Project Details from MongoDB: ${id} ---`);
   try {
-    const doc = await db.collection('projects').doc(id).get();
-    if (!doc.exists) {
-      return res.status(404).json({ error: "Project not found" });
-    }
-
-    const data = doc.data();
-    res.status(200).json({ id: doc.id, ...data });
+    const doc = await Project.findById(id).lean() as any;
+    if (!doc) return res.status(404).json({ error: "Project not found" });
+    res.status(200).json({ ...doc, id: doc._id.toString() });
   } catch (error: any) {
-    console.error("[Firestore] Get details failed for ID:", id, error);
+    console.error("[MongoDB] Get details failed for ID:", id, error);
     res.status(500).json({ error: "Failed to fetch project details" });
   }
 });
@@ -790,30 +790,25 @@ app.delete("/api/projects/:id", async (req, res) => {
   const { id } = req.params;
   console.log(`\n--- Deleting Project: ${id} ---`);
   try {
-    const projectRef = db.collection('projects').doc(id);
-    const doc = await projectRef.get();
+    const doc = await Project.findById(id).lean() as any;
+    if (!doc) return res.status(404).json({ error: "Project not found" });
 
-    if (doc.exists) {
-      const data = doc.data();
-      const urls = [
-        data?.originalImageUrl,
-        data?.daylightImageUrl,
-        data?.nighttimeImageUrl,
-        data?.labelledImageUrl
-      ];
-
-      const publicIds = urls.map(url => getPublicIdFromUrl(url as string | null | undefined)).filter(Boolean) as string[];
-      if (publicIds.length > 0) {
-        console.log(`[Cloudinary] Deleting assets via derived public IDs:`, publicIds);
-        await Promise.all(publicIds.map(pid => cloudinary.uploader.destroy(pid)));
-      }
-
-      console.log(`[Firestore] Deleting project metadata document`);
-      await projectRef.delete();
-      res.status(200).json({ success: true });
-    } else {
-      res.status(404).json({ error: "Project not found" });
+    // Delete Cloudinary assets
+    const urls = [
+      doc.originalImageUrl,
+      doc.daylightImageUrl,
+      doc.nighttimeImageUrl,
+      doc.labelledImageUrl,
+    ];
+    const publicIds = urls.map(url => getPublicIdFromUrl(url)).filter(Boolean) as string[];
+    if (publicIds.length > 0) {
+      console.log(`[Cloudinary] Deleting assets:`, publicIds);
+      await Promise.all(publicIds.map(pid => cloudinary.uploader.destroy(pid)));
     }
+
+    await Project.findByIdAndDelete(id);
+    console.log(`[MongoDB] Project ${id} deleted.`);
+    res.status(200).json({ success: true });
   } catch (error: any) {
     console.error("[Backend] Delete failed:", error);
     res.status(500).json({ error: "Failed to delete project" });

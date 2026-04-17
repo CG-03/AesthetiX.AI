@@ -4,8 +4,7 @@
   "version": "1.0.0",
   "scripts": {
     "install-all": "npm install && npm install --prefix frontend && npm install --prefix backend",
-    "python:dev": "cd backend/python && if not exist venv (python -m venv venv && venv\\Scripts\\pip install -r requirements.txt) && venv\\Scripts\\python -m uvicorn main:app --port 8000",
-    "dev": "concurrently \"npm run dev --prefix frontend\" \"npm run dev --prefix backend\" \"npm run python:dev\"",
+    "dev": "concurrently \"npm run dev --prefix frontend\" \"npm run dev --prefix backend\"",
     "build": "npm run build --prefix frontend",
     "start": "npm start --prefix backend"
   },
