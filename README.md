@@ -2,11 +2,11 @@
 <img width="1200" height="475" alt="GHBanner" src="https://github.com/user-attachments/assets/0aa67016-6eaf-458a-adb2-6e31a0763ed6" />
 </div>
 
-# Vastu AI: Revolutionizing Interior Design with AI Studio
+# Vastu AI: Revolutionizing Interior Design
 
 This contains everything you need to run your app locally.
 
-View your app in AI Studio: https://ai.studio/apps/8a57609e-8369-44fa-a0a8-ee322cd3b6e4
+
 
 ## Run Locally
 
